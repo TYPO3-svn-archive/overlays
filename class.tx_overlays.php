@@ -95,7 +95,7 @@ class tx_overlays {
 	 * @param	string		$table: name of the table to assemble the condition for
 	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	protected function getLanguageCondition($table) {
+	public function getLanguageCondition($table) {
 		$languageCondition = '';
 
 			// First check if there's actually a TCA for the given table
@@ -118,6 +118,7 @@ class tx_overlays {
 				}
 			}
 		}
+			// TODO: throw an exception if table has no language mechanism?
 		return $languageCondition;
 	}
 
@@ -129,7 +130,7 @@ class tx_overlays {
 	 * @param	boolean		$showHidden: If set, then you want NOT to filter out hidden records. Otherwise hidden record are filtered based on the current preview settings.
 	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	protected function getEnableFieldsCondition($table, $showHidden = 0) {
+	public function getEnableFieldsCondition($table, $showHidden = 0) {
 		$enableCondition = '';
 			// First check if table has a TCA ctrl section, otherwise t3lib_page::enableFields() will die() (stupid thing!)
 		if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
@@ -139,6 +140,7 @@ class tx_overlays {
 				$enableCondition = substr($enableCondition, strlen(' AND '));
 			}
 		}
+			// TODO: throw an exception if the given table has no TCA? (t3lib_page::enableFields() used a die)
 		return $enableCondition;
 	}
 
@@ -151,36 +153,52 @@ class tx_overlays {
 	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
 	 * @return	string		Possibly modified list of fields to select
 	 */
-	protected function selectOverlayFields($table, $selectFields) {
+	public function selectOverlayFields($table, $selectFields) {
 		$select = $selectFields;
-		$languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
 
-			// In order to be properly overlaid, a table has to have a uid, a pid and languageField
-		$hasUidField = strpos($selectFields, 'uid');
-		$hasPidField = strpos($selectFields, 'pid');
-		$hasLanguageField = strpos($selectFields, $languageField);
-		if ($hasUidField === false || $hasPidField === false || $hasLanguageField === false) {
-			$availableFields = $GLOBALS['TYPO3_DB']->admin_get_fields($table);
-			if (isset($availableFields['uid'])) {
-				if ($selectFields != '*') $select .= ', uid';
-				$hasUidField = true;
+			// Check if the table indeed has a TCA
+		if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
+
+				// If the table uses a foreign table for translations, there are no fields to add
+				// Return original select fields directly
+			if ($GLOBALS['TCA'][$table]['ctrl']['transForeignTable']) {
+				return $selectFields;
 			}
-			if (isset($availableFields['pid'])) {
-				if ($selectFields != '*') $select .= ', pid';
-				$hasPidField = true;
-			}
-			if (isset($availableFields[$languageField])) {
-				if ($selectFields != '*') $select .= ', '.$languageField;
-				$hasLanguageField = true;
+			else {
+				$languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
+
+					// In order to be properly overlaid, a table has to have a uid, a pid and languageField
+				$hasUidField = strpos($selectFields, 'uid');
+				$hasPidField = strpos($selectFields, 'pid');
+				$hasLanguageField = strpos($selectFields, $languageField);
+				if ($hasUidField === false || $hasPidField === false || $hasLanguageField === false) {
+					$availableFields = $GLOBALS['TYPO3_DB']->admin_get_fields($table);
+					if (isset($availableFields['uid'])) {
+						if ($selectFields != '*') $select .= ', uid';
+						$hasUidField = true;
+					}
+					if (isset($availableFields['pid'])) {
+						if ($selectFields != '*') $select .= ', pid';
+						$hasPidField = true;
+					}
+					if (isset($availableFields[$languageField])) {
+						if ($selectFields != '*') $select .= ', '.$languageField;
+						$hasLanguageField = true;
+					}
+				}
+					// If one of the fields is still missing after that, throw an exception
+				if ($hasUidField === false || $hasPidField === false || $hasLanguageField === false) {
+					throw new Exception('Not all overlay fields available.');
+				}
+					// Else return the modified list of fields to select
+				else {
+					return $select;
+				}
 			}
 		}
-			// If one of the fields is still missing after that, throw an exception
-		if ($hasUidField === false || $hasPidField === false || $hasLanguageField === false) {
-			throw new Exception('Not all overlay fields available.');
-		}
-			// Else return the modified list of fields to select
+			// The table has no TCA, throw an exception
 		else {
-			return $select;
+			throw new Exception('No TCA for table, cannot add overlay fields.');
 		}
 	}
 
