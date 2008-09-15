@@ -20,6 +20,8 @@
 *  GNU General Public License for more details.
 *
 *  This copyright notice MUST APPEAR in all copies of the script!
+*
+* $Id$
 ***************************************************************/
 /**
  * [CLASS/FUNCTION INDEX of SCRIPT]
