@@ -324,7 +324,7 @@ class tx_overlays {
 	 * @return	array	Overlaid record
 	 */
 	protected function overlaySingleRecord($table, $record, $overlay) {
-		$overlaidRecord = $row;
+		$overlaidRecord = $record;
 		$overlaidRecord['_LOCALIZED_UID'] = $overlay['uid'];
 		foreach($record as $key => $value) {
 			if ($key != 'uid' && $key != 'pid' && isset($overlay[$key])) {
