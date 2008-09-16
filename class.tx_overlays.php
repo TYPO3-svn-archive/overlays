@@ -63,13 +63,19 @@ class tx_overlays {
 		if (!empty($where)) $where .= ' AND ';
 		$where .= self::getEnableFieldsCondition($fromTable);
 
-			// Make sure the list of selected fields includes "uid", "pid" and language fields so that language overlays can be gotten properly
-			// If these do not exist in the queried table, the recordset is returned as is, without overlay
-		try {
-			$selectFields = self::selectOverlayFields($fromTable, $selectFields);
-			$doOverlays = true;
+			// If the language is not default, prepare for overlays
+		if ($GLOBALS['TSFE']->sys_language_content > 0) {
+				// Make sure the list of selected fields includes "uid", "pid" and language fields so that language overlays can be gotten properly
+				// If these do not exist in the queried table, the recordset is returned as is, without overlay
+			try {
+				$selectFields = self::selectOverlayFields($fromTable, $selectFields);
+				$doOverlays = true;
+			}
+			catch (Exception $e) {
+				$doOverlays = false;
+			}
 		}
-		catch (Exception $e) {
+		else {
 			$doOverlays = false;
 		}
 
@@ -255,7 +261,7 @@ class tx_overlays {
 									'*',
 									$table,
 										$tableCtrl['languageField'].' = '.intval($sys_language_content).
-										' AND '.$tableCtrl['transOrigPointerField'].' = '.intval($row['uid']).
+										' AND '.$tableCtrl['transOrigPointerField'].' IN ('.implode(', ', $uidList).')'.
 										' AND '.self::getEnableFieldsCondition($table)
 								);
 									// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
