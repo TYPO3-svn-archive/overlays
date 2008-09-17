@@ -111,16 +111,16 @@ class tx_overlays {
 				// Assemble language condition only if a language field is defined
 			if (!empty($tableCtrlTCA['languageField'])) {
 				if (isset($GLOBALS['TSFE']->sys_language_contentOL) && isset($tableCtrlTCA['transOrigPointerField'])) {
-					$languageCondition = $tableCtrlTCA['languageField'].' IN (0,-1)'; // Default language and "all" language
+					$languageCondition = $table.'.'.$tableCtrlTCA['languageField'].' IN (0,-1)'; // Default language and "all" language
 
 					// If current language is not default, select elements that exist only for current language
 					// That means elements that exist for current language but have no parent element
 					if ($GLOBALS['TSFE']->sys_language_content > 0) {
-						$languageCondition .= ' OR ('.$tableCtrlTCA['languageField']." = '".$GLOBALS['TSFE']->sys_language_content."' AND ".$tableCtrlTCA['transOrigPointerField']." = '0')";
+						$languageCondition .= ' OR ('.$table.'.'.$tableCtrlTCA['languageField']." = '".$GLOBALS['TSFE']->sys_language_content."' AND ".$table.'.'.$tableCtrlTCA['transOrigPointerField']." = '0')";
 					}
 				}
 				else {
-					$languageCondition = $tableCtrlTCA['languageField']." = '".$GLOBALS['TSFE']->sys_language_content."'";
+					$languageCondition = $table.'.'.$tableCtrlTCA['languageField']." = '".$GLOBALS['TSFE']->sys_language_content."'";
 				}
 			}
 		}
@@ -180,15 +180,15 @@ class tx_overlays {
 				if ($hasUidField === false || $hasPidField === false || $hasLanguageField === false) {
 					$availableFields = $GLOBALS['TYPO3_DB']->admin_get_fields($table);
 					if (isset($availableFields['uid'])) {
-						if ($selectFields != '*') $select .= ', uid';
+						if ($selectFields != '*') $select .= ', '.$table.'.uid';
 						$hasUidField = true;
 					}
 					if (isset($availableFields['pid'])) {
-						if ($selectFields != '*') $select .= ', pid';
+						if ($selectFields != '*') $select .= ', '.$table.'.pid';
 						$hasPidField = true;
 					}
 					if (isset($availableFields[$languageField])) {
-						if ($selectFields != '*') $select .= ', '.$languageField;
+						if ($selectFields != '*') $select .= ', '.$table.'.'.$languageField;
 						$hasLanguageField = true;
 					}
 				}
