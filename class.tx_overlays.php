@@ -58,10 +58,16 @@ class tx_overlays {
 	public function getAllRecordsForTable($selectFields, $fromTable, $whereClause = '', $groupBy = '', $orderBy = '', $limit = '') {
 			// SQL WHERE clause is the base clause passed to the function, plus language condition, plus enable fields condition
 		$where = $whereClause;
-		if (!empty($where)) $where .= ' AND ';
-		$where .= self::getLanguageCondition($fromTable);
-		if (!empty($where)) $where .= ' AND ';
-		$where .= self::getEnableFieldsCondition($fromTable);
+		$condition = self::getLanguageCondition($fromTable);
+		if (!empty($condition)) {
+			if (!empty($where)) $where .= ' AND ';
+			$where .= $condition;
+		}
+		$condition = self::getEnableFieldsCondition($fromTable);
+		if (!empty($condition)) {
+			if (!empty($where)) $where .= ' AND ';
+			$where .= $condition;
+		}
 
 			// If the language is not default, prepare for overlays
 		if ($GLOBALS['TSFE']->sys_language_content > 0) {
