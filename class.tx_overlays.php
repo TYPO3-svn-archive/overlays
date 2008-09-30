@@ -262,6 +262,7 @@ class tx_overlays {
 									$uidList[] = $row['uid'];
 								}
 
+/*
 									// Select overlays for all records
 								$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
 									'*',
@@ -279,6 +280,8 @@ class tx_overlays {
 									if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) $overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
 									$overlays[$row[$tableCtrl['transOrigPointerField']]][$row['pid']] = $row;
 								}
+*/
+								$overlays = self::getOverlayRecords($table, $uidList, $sys_language_content);
 
 									// Now loop on the filtered recordset and try to overlay each record
 								$overlaidRecordset = array();
@@ -327,6 +330,36 @@ class tx_overlays {
 	}
 
 	/**
+	 * This method is used to retrieve all the records for overlaying other records
+	 *
+	 * @param	string		$table: name of the table for which to fetch the records
+	 * @param	array		$uids: array of all uid's of the original records for which to fetch the translation
+	 * @param	integer		$sys_language_content: uid of the system language to translate to
+	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
+	 */
+	public function getOverlayRecords($table, $uids, $sys_language_content) {
+		$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
+			// Select overlays for all records
+		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
+			'*',
+			$table,
+				$tableCtrl['languageField'].' = '.intval($sys_language_content).
+				' AND '.$tableCtrl['transOrigPointerField'].' IN ('.implode(', ', $uids).')'.
+				' AND '.self::getEnableFieldsCondition($table)
+		);
+			// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
+			// This structure is actually a 2-dimensional array, with the pid as the second key
+			// Because of versioning, there may be several overlays for a given original and matching the pid too
+			// ensures that we are refering to the correct overlay
+		$overlays = array();
+		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
+			if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) $overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
+			$overlays[$row[$tableCtrl['transOrigPointerField']]][$row['pid']] = $row;
+		}
+		return $overlays;
+	}
+
+	/**
 	 * This method takes a record and its overlay and performs the overlay according to active translation rules
 	 * This piece of code is extracted from t3lib_page::getRecordOverlay()
 	 *
@@ -335,7 +368,7 @@ class tx_overlays {
 	 * @param	array	$overlay: overlay of the record
 	 * @return	array	Overlaid record
 	 */
-	protected function overlaySingleRecord($table, $record, $overlay) {
+	public function overlaySingleRecord($table, $record, $overlay) {
 		$overlaidRecord = $record;
 		$overlaidRecord['_LOCALIZED_UID'] = $overlay['uid'];
 		foreach($record as $key => $value) {
