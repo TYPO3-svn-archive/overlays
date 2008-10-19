@@ -233,82 +233,99 @@ class tx_overlays {
 			if (isset($GLOBALS['TCA'][$table])) {
 				$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
 
-					// Test if the TCA definition includes translation information
-				if ($tableCtrl['languageField'] && $tableCtrl['transOrigPointerField']) {
+					// Test if the TCA definition includes translation information for the same table
+				if (isset($tableCtrl['languageField']) && isset($tableCtrl['transOrigPointerField'])) {
 
 						// Test with the first row if languageField is present
 					if (isset($recordset[0][$tableCtrl['languageField']])) {
-						if ($tableCtrl['transOrigPointerTable']) {
-							// TODO: Handle overlays stored in separate table (see Olly's patch)
-							// In the meantime, return recordset unchanged
-							return $recordset;
+							// Filter out records that are not in the default or [ALL] language, should there be any
+						$filteredRecordset = array();
+						foreach ($recordset as $row) {
+							if ($row[$tableCtrl['languageField']] <= 0) {
+								$filteredRecordset[] = $row;
+							}
+						}
+
+							// Will try to overlay a record only if the sys_language_content value is larger than zero,
+							// that is, it is not default or [ALL] language
+						if ($sys_language_content > 0) {
+								// Assemble a list of uid's for getting the overlays,
+								// but only from the filtered recordset
+							$uidList = array();
+							foreach ($filteredRecordset as $row) {
+								$uidList[] = $row['uid'];
+							}
+
+								// Get all overlay records
+							$overlays = self::getLocalOverlayRecords($table, $uidList, $sys_language_content);
+
+								// Now loop on the filtered recordset and try to overlay each record
+							$overlaidRecordset = array();
+							foreach ($filteredRecordset as $row) {
+									// An overlay exists, apply it
+								if (isset($overlays[$row['uid']][$row['pid']])) {
+									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']][$row['pid']]);
+								}
+									// No overlay exists
+								else {
+										// Take original record, only if non-translated are not hidden, or if language is [All]
+									if ($OLmode != 'hideNonTranslated' || $row[$tableCtrl['languageField']] == -1) {
+										$overlaidRecordset[] = $row;
+									}
+								}
+							}
+								// Return the overlaid recordset
+							return $overlaidRecordset;
 						}
 						else {
-								// Filter out records that are not in the default or [ALL] language, should there be any
-							$filteredRecordset = array();
-							foreach ($recordset as $row) {
-								if ($row[$tableCtrl['languageField']] <= 0) {
-									$filteredRecordset[] = $row;
-								}
-							}
-
-								// Will try to overlay a record only if the sys_language_content value is larger than zero,
-								// that is, it is not default or [ALL] language
-							if ($sys_language_content > 0) {
-									// Assemble a list of uid's for getting the overlays,
-									// but only from the filtered recordset
-								$uidList = array();
-								foreach ($filteredRecordset as $row) {
-									$uidList[] = $row['uid'];
-								}
-
-/*
-									// Select overlays for all records
-								$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
-									'*',
-									$table,
-										$tableCtrl['languageField'].' = '.intval($sys_language_content).
-										' AND '.$tableCtrl['transOrigPointerField'].' IN ('.implode(', ', $uidList).')'.
-										' AND '.self::getEnableFieldsCondition($table)
-								);
-									// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
-									// This structure is actually a 2-dimensional array, with the pid as the second key
-									// Because of versioning, there may be several overlays for a given original and matching the pid too
-									// ensures that we are refering to the correct overlay
-								$overlays = array();
-								while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-									if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) $overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
-									$overlays[$row[$tableCtrl['transOrigPointerField']]][$row['pid']] = $row;
-								}
-*/
-								$overlays = self::getOverlayRecords($table, $uidList, $sys_language_content);
-
-									// Now loop on the filtered recordset and try to overlay each record
-								$overlaidRecordset = array();
-								foreach ($filteredRecordset as $row) {
-										// An overlay exists, apply it
-									if (isset($overlays[$row['uid']][$row['pid']])) {
-										$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']][$row['pid']]);
-									}
-										// No overlay exists
-									else {
-											// Take original record, only if non-translated are not hidden, or if language is [All]
-										if ($OLmode != 'hideNonTranslated' || $row[$tableCtrl['languageField']] == -1) {
-											$overlaidRecordset[] = $row;
-										}
-									}
-								}
-									// Return the overlaid recordset
-								return $overlaidRecordset;
-							}
-							else {
-									// When default language is displayed, we never want to return a record carrying another language!
-									// Return the filtered recordset
-								return $filteredRecordset;
-							}
+								// When default language is displayed, we never want to return a record carrying another language!
+								// Return the filtered recordset
+							return $filteredRecordset;
 						}
 					}
 						// Provided recordset does not contain languageField field, return recordset unchanged
+					else {
+						return $recordset;
+					}
+				}
+					// Test if the TCA definition includes translation information for a foreign table
+				elseif (isset($tableCtrl['transForeignTable'])) {
+						// The foreign table has a TCA structure. We can proceed.
+					if (isset($GLOBALS['TCA'][$tableCtrl['transForeignTable']])) {
+						$foreignCtrl = $GLOBALS['TCA'][$tableCtrl['transForeignTable']]['ctrl'];
+							// Check that the foreign table is indeed the appropriate translation table
+							// and also check that the foreign table has all the necessary TCA definitions
+						if (!empty($foreignCtrl['transOrigPointerTable']) && $foreignCtrl['transOrigPointerTable'] == $table && !empty($foreignCtrl['transOrigPointerField']) && !empty($foreignCtrl['languageField'])) {
+								// Assemble a list of all uid's of records to translate
+							$uidList = array();
+							foreach ($recordset as $row) {
+								$uidList[] = $row['uid'];
+							}
+
+								// Get all overlay records
+							$overlays = $this->getForeignOverlayRecords($tableCtrl['transForeignTable'], $uidList, $sys_language_content);
+
+								// Now loop on the filtered recordset and try to overlay each record
+							$overlaidRecordset = array();
+							foreach ($recordset as $row) {
+									// An overlay exists, apply it
+								if (isset($overlays[$row['uid']])) {
+									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']][$row['pid']]);
+								}
+									// No overlay exists
+								else {
+										// Take original record, only if non-translated are not hidden
+									if ($OLmode != 'hideNonTranslated') {
+										$overlaidRecordset[] = $row;
+									}
+								}
+							}
+								// Return the overlaid recordset
+							return $overlaidRecordset;
+						}
+					}
+						// The foreign table has no TCA definition, it's impossible to perform overlays
+						// Return recordset as is
 					else {
 						return $recordset;
 					}
@@ -330,14 +347,34 @@ class tx_overlays {
 	}
 
 	/**
-	 * This method is used to retrieve all the records for overlaying other records
-	 *
+	 * This method is a wrapper around getLocalOverlayRecords() and getForeignOverlayRecords().
+	 * It makes it possible to use the same call whether translations are in the same table or
+	 * in a foreign table. This method dispatches accordingly.
+	 * 
 	 * @param	string		$table: name of the table for which to fetch the records
 	 * @param	array		$uids: array of all uid's of the original records for which to fetch the translation
 	 * @param	integer		$sys_language_content: uid of the system language to translate to
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
 	public function getOverlayRecords($table, $uids, $sys_language_content) {
+		if (isset($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'])) {
+			return self::getForeignOverlayRecords($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'], $uids, $sys_language_content);
+		}
+		else {
+			return self::getLocalOverlayRecords($table, $uids, $sys_language_content);
+		}
+	}
+
+	/**
+	 * This method is used to retrieve all the records for overlaying other records
+	 * when those records are stored in the same table as the originals
+	 *
+	 * @param	string		$table: name of the table for which to fetch the records
+	 * @param	array		$uids: array of all uid's of the original records for which to fetch the translation
+	 * @param	integer		$sys_language_content: uid of the system language to translate to
+	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
+	 */
+	public function getLocalOverlayRecords($table, $uids, $sys_language_content) {
 		$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
 			// Select overlays for all records
 		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
@@ -355,6 +392,33 @@ class tx_overlays {
 		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
 			if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) $overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
 			$overlays[$row[$tableCtrl['transOrigPointerField']]][$row['pid']] = $row;
+		}
+		return $overlays;
+	}
+
+	/**
+	 * This method is used to retrieve all the records for overlaying other records
+	 * when those records are stored in a different table than the originals
+	 *
+	 * @param	string		$table: name of the table for which to fetch the records
+	 * @param	array		$uids: array of all uid's of the original records for which to fetch the translation
+	 * @param	integer		$sys_language_content: uid of the system language to translate to
+	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
+	 */
+	public function getForeignOverlayRecords($table, $uids, $sys_language_content) {
+		$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
+			// Select overlays for all records
+		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
+			'*',
+			$table,
+				$tableCtrl['languageField'].' = '.intval($sys_language_content).
+				' AND '.$tableCtrl['transOrigPointerField'].' IN ('.implode(', ', $uids).')'.
+				' AND '.self::getEnableFieldsCondition($table)
+		);
+			// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
+		$overlays = array();
+		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
+			$overlays[$row[$tableCtrl['transOrigPointerField']]] = $row;
 		}
 		return $overlays;
 	}
