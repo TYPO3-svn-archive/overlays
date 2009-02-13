@@ -357,11 +357,16 @@ class tx_overlays {
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
 	public function getOverlayRecords($table, $uids, $sys_language_content) {
-		if (isset($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'])) {
-			return self::getForeignOverlayRecords($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'], $uids, $sys_language_content);
+		if (is_array($uids) && count($uids) > 0) {
+			if (isset($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'])) {
+				return self::getForeignOverlayRecords($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'], $uids, $sys_language_content);
+			}
+			else {
+				return self::getLocalOverlayRecords($table, $uids, $sys_language_content);
+			}
 		}
 		else {
-			return self::getLocalOverlayRecords($table, $uids, $sys_language_content);
+			return array();
 		}
 	}
 
@@ -375,23 +380,25 @@ class tx_overlays {
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
 	public function getLocalOverlayRecords($table, $uids, $sys_language_content) {
-		$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
-			// Select overlays for all records
-		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
-			'*',
-			$table,
-				$tableCtrl['languageField'].' = '.intval($sys_language_content).
-				' AND '.$tableCtrl['transOrigPointerField'].' IN ('.implode(', ', $uids).')'.
-				' AND '.self::getEnableFieldsCondition($table)
-		);
-			// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
-			// This structure is actually a 2-dimensional array, with the pid as the second key
-			// Because of versioning, there may be several overlays for a given original and matching the pid too
-			// ensures that we are refering to the correct overlay
 		$overlays = array();
-		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-			if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) $overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
-			$overlays[$row[$tableCtrl['transOrigPointerField']]][$row['pid']] = $row;
+		if (is_array($uids) && count($uids) > 0) {
+			$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
+				// Select overlays for all records
+			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
+				'*',
+				$table,
+					$tableCtrl['languageField'].' = '.intval($sys_language_content).
+					' AND '.$tableCtrl['transOrigPointerField'].' IN ('.implode(', ', $uids).')'.
+					' AND '.self::getEnableFieldsCondition($table)
+			);
+				// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
+				// This structure is actually a 2-dimensional array, with the pid as the second key
+				// Because of versioning, there may be several overlays for a given original and matching the pid too
+				// ensures that we are refering to the correct overlay
+			while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
+				if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) $overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
+				$overlays[$row[$tableCtrl['transOrigPointerField']]][$row['pid']] = $row;
+			}
 		}
 		return $overlays;
 	}
@@ -406,19 +413,21 @@ class tx_overlays {
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
 	public function getForeignOverlayRecords($table, $uids, $sys_language_content) {
-		$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
-			// Select overlays for all records
-		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
-			'*',
-			$table,
-				$tableCtrl['languageField'].' = '.intval($sys_language_content).
-				' AND '.$tableCtrl['transOrigPointerField'].' IN ('.implode(', ', $uids).')'.
-				' AND '.self::getEnableFieldsCondition($table)
-		);
-			// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
 		$overlays = array();
-		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-			$overlays[$row[$tableCtrl['transOrigPointerField']]] = $row;
+		if (is_array($uids) && count($uids) > 0) {
+			$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
+				// Select overlays for all records
+			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
+				'*',
+				$table,
+					$tableCtrl['languageField'].' = '.intval($sys_language_content).
+					' AND '.$tableCtrl['transOrigPointerField'].' IN ('.implode(', ', $uids).')'.
+					' AND '.self::getEnableFieldsCondition($table)
+			);
+				// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
+			while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
+				$overlays[$row[$tableCtrl['transOrigPointerField']]] = $row;
+			}
 		}
 		return $overlays;
 	}
@@ -435,10 +444,15 @@ class tx_overlays {
 	public function overlaySingleRecord($table, $record, $overlay) {
 		$overlaidRecord = $record;
 		$overlaidRecord['_LOCALIZED_UID'] = $overlay['uid'];
-		foreach($record as $key => $value) {
+		foreach ($record as $key => $value) {
 			if ($key != 'uid' && $key != 'pid' && isset($overlay[$key])) {
-				if ($GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$key] != 'exclude'
-						&& ($GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$key] != 'mergeIfNotBlank' || strcmp(trim($overlay[$key]), ''))) {
+				if (isset($GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$key])) {
+					if ($GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$key] != 'exclude'
+							&& ($GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$key] != 'mergeIfNotBlank' || strcmp(trim($overlay[$key]), ''))) {
+						$overlaidRecord[$key] = $overlay[$key];
+					}
+				}
+				else {
 					$overlaidRecord[$key] = $overlay[$key];
 				}
 			}
