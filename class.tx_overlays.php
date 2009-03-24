@@ -61,12 +61,12 @@ class tx_overlays {
 		$condition = self::getLanguageCondition($fromTable);
 		if (!empty($condition)) {
 			if (!empty($where)) $where .= ' AND ';
-			$where .= $condition;
+			$where .= '(' . $condition . ')';
 		}
 		$condition = self::getEnableFieldsCondition($fromTable);
 		if (!empty($condition)) {
 			if (!empty($where)) $where .= ' AND ';
-			$where .= $condition;
+			$where .= '(' . $condition . ')';
 		}
 
 			// If the language is not default, prepare for overlays
