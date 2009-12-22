@@ -20,14 +20,7 @@
 *  GNU General Public License for more details.
 *
 *  This copyright notice MUST APPEAR in all copies of the script!
-*
-* $Id$
 ***************************************************************/
-/**
- * [CLASS/FUNCTION INDEX of SCRIPT]
- *
- * Hint: use extdeveval to insert/update function index above.
- */
 
 
 /**
@@ -35,9 +28,11 @@
  * It aims to improve on the performance of the original overlaying mechanism provided by t3lib_page
  * and to provide a more useful API for developers
  *
- * @author	Francois Suter (Cobweb) <typo3@cobweb.ch>
- * @package	TYPO3
+ * @author		Francois Suter (Cobweb) <typo3@cobweb.ch>
+ * @package		TYPO3
  * @subpackage	tx_overlays
+ *
+ * $Id$
  */
 class tx_overlays {
 
@@ -92,6 +87,7 @@ class tx_overlays {
 		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
 			$records[] = $row;
 		}
+		$GLOBALS['TYPO3_DB']->sql_free_result($res);
 
 			// If we have both a uid and a pid field, we can proceed with overlaying the records
 		if ($doOverlays) {
@@ -399,6 +395,7 @@ class tx_overlays {
 				if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) $overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
 				$overlays[$row[$tableCtrl['transOrigPointerField']]][$row['pid']] = $row;
 			}
+			$GLOBALS['TYPO3_DB']->sql_free_result($res);
 		}
 		return $overlays;
 	}
@@ -428,6 +425,7 @@ class tx_overlays {
 			while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
 				$overlays[$row[$tableCtrl['transOrigPointerField']]] = $row;
 			}
+			$GLOBALS['TYPO3_DB']->sql_free_result($res);
 		}
 		return $overlays;
 	}
