@@ -2,7 +2,7 @@
 /***************************************************************
 *  Copyright notice
 *
-*  (c) 2008 Francois Suter (Cobweb) <typo3@cobweb.ch>
+*  (c) 2008-2010 Francois Suter (Cobweb) <typo3@cobweb.ch>
 *  All rights reserved
 *
 *  This script is part of the TYPO3 project. The TYPO3 project is
@@ -55,36 +55,38 @@ class tx_overlays {
 		$where = $whereClause;
 		$condition = self::getLanguageCondition($fromTable);
 		if (!empty($condition)) {
-			if (!empty($where)) $where .= ' AND ';
+			if (!empty($where)) {
+				$where .= ' AND ';
+			}
 			$where .= '(' . $condition . ')';
 		}
 		$condition = self::getEnableFieldsCondition($fromTable);
 		if (!empty($condition)) {
-			if (!empty($where)) $where .= ' AND ';
+			if (!empty($where)) {
+				$where .= ' AND ';
+			}
 			$where .= '(' . $condition . ')';
 		}
 
 			// If the language is not default, prepare for overlays
+		$doOverlays = FALSE;
 		if ($GLOBALS['TSFE']->sys_language_content > 0) {
 				// Make sure the list of selected fields includes "uid", "pid" and language fields so that language overlays can be gotten properly
 				// If these do not exist in the queried table, the recordset is returned as is, without overlay
 			try {
 				$selectFields = self::selectOverlayFields($fromTable, $selectFields);
-				$doOverlays = true;
+				$doOverlays = TRUE;
 			}
 			catch (Exception $e) {
-				$doOverlays = false;
+				$doOverlays = FALSE;
 			}
-		}
-		else {
-			$doOverlays = false;
 		}
 
 			// Execute the query itself
 		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit);
 			// Assemble a raw recordset
 		$records = array();
-		while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
+		while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
 			$records[] = $row;
 		}
 		$GLOBALS['TYPO3_DB']->sql_free_result($res);
@@ -126,7 +128,6 @@ class tx_overlays {
 				}
 			}
 		}
-			// TODO: throw an exception if table has no language mechanism?
 		return $languageCondition;
 	}
 
@@ -138,11 +139,11 @@ class tx_overlays {
 	 * @param	boolean		$showHidden: If set, then you want NOT to filter out hidden records. Otherwise hidden record are filtered based on the current preview settings.
 	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	public function getEnableFieldsCondition($table, $showHidden = 0) {
+	public function getEnableFieldsCondition($table, $showHidden = FALSE) {
 		$enableCondition = '';
 			// First check if table has a TCA ctrl section, otherwise t3lib_page::enableFields() will die() (stupid thing!)
 		if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
-			$enableCondition = $GLOBALS['TSFE']->sys_page->enableFields($table, $show_hidden ? $show_hidden : ($table == 'pages' ? $GLOBALS['TSFE']->showHiddenPage : $GLOBALS['TSFE']->showHiddenRecords));
+			$enableCondition = $GLOBALS['TSFE']->sys_page->enableFields($table, $showHidden ? $showHidden : ($table == 'pages' ? $GLOBALS['TSFE']->showHiddenPage : $GLOBALS['TSFE']->showHiddenRecords));
 				// If an enable clause was returned, strip the first ' AND '
 			if (!empty($enableCondition)) {
 				$enableCondition = substr($enableCondition, strlen(' AND '));
@@ -356,12 +357,10 @@ class tx_overlays {
 		if (is_array($uids) && count($uids) > 0) {
 			if (isset($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'])) {
 				return self::getForeignOverlayRecords($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'], $uids, $sys_language_content);
-			}
-			else {
+			} else {
 				return self::getLocalOverlayRecords($table, $uids, $sys_language_content);
 			}
-		}
-		else {
+		} else {
 			return array();
 		}
 	}
@@ -384,15 +383,17 @@ class tx_overlays {
 				'*',
 				$table,
 					$tableCtrl['languageField'].' = '.intval($sys_language_content).
-					' AND '.$tableCtrl['transOrigPointerField'].' IN ('.implode(', ', $uids).')'.
-					' AND '.self::getEnableFieldsCondition($table)
+					' AND ' . $tableCtrl['transOrigPointerField'] . ' IN (' . implode(', ', $uids) . ')' .
+					' AND ' . self::getEnableFieldsCondition($table)
 			);
 				// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
 				// This structure is actually a 2-dimensional array, with the pid as the second key
 				// Because of versioning, there may be several overlays for a given original and matching the pid too
 				// ensures that we are refering to the correct overlay
-			while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-				if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) $overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
+			while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
+				if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) {
+					$overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
+				}
 				$overlays[$row[$tableCtrl['transOrigPointerField']]][$row['pid']] = $row;
 			}
 			$GLOBALS['TYPO3_DB']->sql_free_result($res);
@@ -418,11 +419,11 @@ class tx_overlays {
 				'*',
 				$table,
 					$tableCtrl['languageField'].' = '.intval($sys_language_content).
-					' AND '.$tableCtrl['transOrigPointerField'].' IN ('.implode(', ', $uids).')'.
-					' AND '.self::getEnableFieldsCondition($table)
+					' AND ' . $tableCtrl['transOrigPointerField'] . ' IN (' . implode(', ', $uids) . ')' .
+					' AND ' . self::getEnableFieldsCondition($table)
 			);
 				// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
-			while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
+			while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
 				$overlays[$row[$tableCtrl['transOrigPointerField']]] = $row;
 			}
 			$GLOBALS['TYPO3_DB']->sql_free_result($res);
@@ -449,8 +450,7 @@ class tx_overlays {
 							&& ($GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$key] != 'mergeIfNotBlank' || strcmp(trim($overlay[$key]), ''))) {
 						$overlaidRecord[$key] = $overlay[$key];
 					}
-				}
-				else {
+				} else {
 					$overlaidRecord[$key] = $overlay[$key];
 				}
 			}
