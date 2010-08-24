@@ -12,7 +12,7 @@
 
 $EM_CONF[$_EXTKEY] = array(
 	'title' => 'Improved overlays',
-	'description' => 'This is a test extension designed to improve TYPO3\'s overlay mechanism, mostly in terms of performance but also of API. Hopefully this can go into core when mature.',
+	'description' => 'This extension provides an easy to use API for retrieving properly localized records. It also takes care of keeping the DB calls to a minimum.',
 	'category' => 'fe',
 	'author' => 'Francois Suter (Cobweb)',
 	'author_email' => 'typo3@cobweb.ch',
@@ -29,7 +29,7 @@ $EM_CONF[$_EXTKEY] = array(
 	'clearCacheOnLoad' => 0,
 	'lockType' => '',
 	'author_company' => '',
-	'version' => '0.2.3',
+	'version' => '0.3.0',
 	'constraints' => array(
 		'depends' => array(
 		),

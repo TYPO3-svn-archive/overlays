@@ -136,14 +136,16 @@ class tx_overlays {
 	 * Basically it calls on the method provided by t3lib_page, but without the " AND " in front
 	 *
 	 * @param	string		$table: name of the table to build the condition for
-	 * @param	boolean		$showHidden: If set, then you want NOT to filter out hidden records. Otherwise hidden record are filtered based on the current preview settings.
+	 * @param	boolean		$showHidden: if set, then you want NOT to filter out hidden records. Otherwise hidden record are filtered based on the current preview settings.
+	 * @param	array		$ignoreArray: use keys like "disabled", "starttime", "endtime", "fe_group" (i.e. keys from "enablefields" in TCA) and set values to TRUE to exclude corresponding conditions from WHERE clause
 	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	public function getEnableFieldsCondition($table, $showHidden = FALSE) {
+	public function getEnableFieldsCondition($table, $showHidden = FALSE, $ignoreArray = array()) {
 		$enableCondition = '';
 			// First check if table has a TCA ctrl section, otherwise t3lib_page::enableFields() will die() (stupid thing!)
 		if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
-			$enableCondition = $GLOBALS['TSFE']->sys_page->enableFields($table, $showHidden ? $showHidden : ($table == 'pages' ? $GLOBALS['TSFE']->showHiddenPage : $GLOBALS['TSFE']->showHiddenRecords));
+			$showHidden = $showHidden ? $showHidden : ($table == 'pages' ? $GLOBALS['TSFE']->showHiddenPage : $GLOBALS['TSFE']->showHiddenRecords);
+			$enableCondition = $GLOBALS['TSFE']->sys_page->enableFields($table, $showHidden , $ignoreArray);
 				// If an enable clause was returned, strip the first ' AND '
 			if (!empty($enableCondition)) {
 				$enableCondition = substr($enableCondition, strlen(' AND '));
