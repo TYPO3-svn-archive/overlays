@@ -115,12 +115,12 @@ class tx_overlays {
 				// Assemble language condition only if a language field is defined
 			if (!empty($tableCtrlTCA['languageField'])) {
 				if (isset($GLOBALS['TSFE']->sys_language_contentOL) && isset($tableCtrlTCA['transOrigPointerField'])) {
-					$languageCondition = $table.'.'.$tableCtrlTCA['languageField'].' IN (0,-1)'; // Default language and "all" language
+					$languageCondition = $table . '.' . $tableCtrlTCA['languageField'] . ' IN (0,-1)'; // Default language and "all" language
 
 					// If current language is not default, select elements that exist only for current language
 					// That means elements that exist for current language but have no parent element
 					if ($GLOBALS['TSFE']->sys_language_content > 0) {
-						$languageCondition .= ' OR ('.$table.'.'.$tableCtrlTCA['languageField']." = '".$GLOBALS['TSFE']->sys_language_content."' AND ".$table.'.'.$tableCtrlTCA['transOrigPointerField']." = '0')";
+						$languageCondition .= ' OR (' . $table . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "' AND " . $table . '.' . $tableCtrlTCA['transOrigPointerField'] . " = '0')";
 					}
 				}
 				else {
@@ -174,41 +174,46 @@ class tx_overlays {
 				// Return original select fields directly
 			if ($GLOBALS['TCA'][$table]['ctrl']['transForeignTable']) {
 				return $selectFields;
-			}
-			else {
+			} else {
 				$languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
 
 					// In order to be properly overlaid, a table has to have a uid, a pid and languageField
 				$hasUidField = strpos($selectFields, 'uid');
 				$hasPidField = strpos($selectFields, 'pid');
 				$hasLanguageField = strpos($selectFields, $languageField);
-				if ($hasUidField === false || $hasPidField === false || $hasLanguageField === false) {
+				if ($hasUidField === FALSE || $hasPidField === FALSE || $hasLanguageField === FALSE) {
 					$availableFields = $GLOBALS['TYPO3_DB']->admin_get_fields($table);
 					if (isset($availableFields['uid'])) {
-						if ($selectFields != '*') $select .= ', '.$table.'.uid';
-						$hasUidField = true;
+						if ($selectFields != '*') {
+							$select .= ', ' . $table . '.uid';
+						}
+						$hasUidField = TRUE;
 					}
 					if (isset($availableFields['pid'])) {
-						if ($selectFields != '*') $select .= ', '.$table.'.pid';
-						$hasPidField = true;
+						if ($selectFields != '*') {
+							$select .= ', ' . $table . '.pid';
+						}
+						$hasPidField = TRUE;
 					}
 					if (isset($availableFields[$languageField])) {
-						if ($selectFields != '*') $select .= ', '.$table.'.'.$languageField;
-						$hasLanguageField = true;
+						if ($selectFields != '*') {
+							$select .= ', ' . $table . '.'.$languageField;
+						}
+						$hasLanguageField = TRUE;
 					}
 				}
 					// If one of the fields is still missing after that, throw an exception
-				if ($hasUidField === false || $hasPidField === false || $hasLanguageField === false) {
+				if ($hasUidField === FALSE || $hasPidField === FALSE || $hasLanguageField === FALSE) {
 					throw new Exception('Not all overlay fields available.');
-				}
+
 					// Else return the modified list of fields to select
-				else {
+				} else {
 					return $select;
 				}
 			}
-		}
+
 			// The table has no TCA, throw an exception
-		else {
+		} else {
 			throw new Exception('No TCA for table, cannot add overlay fields.');
 		}
 	}
@@ -264,9 +269,9 @@ class tx_overlays {
 									// An overlay exists, apply it
 								if (isset($overlays[$row['uid']][$row['pid']])) {
 									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']][$row['pid']]);
-								}
+
 									// No overlay exists
-								else {
+								} else {
 										// Take original record, only if non-translated are not hidden, or if language is [All]
 									if ($OLmode != 'hideNonTranslated' || $row[$tableCtrl['languageField']] == -1) {
 										$overlaidRecordset[] = $row;
@@ -275,20 +280,20 @@ class tx_overlays {
 							}
 								// Return the overlaid recordset
 							return $overlaidRecordset;
-						}
-						else {
+
+						} else {
 								// When default language is displayed, we never want to return a record carrying another language!
 								// Return the filtered recordset
 							return $filteredRecordset;
 						}
-					}
+
 						// Provided recordset does not contain languageField field, return recordset unchanged
-					else {
+					} else {
 						return $recordset;
 					}
-				}
+
 					// Test if the TCA definition includes translation information for a foreign table
-				elseif (isset($tableCtrl['transForeignTable'])) {
+				} elseif (isset($tableCtrl['transForeignTable'])) {
 						// The foreign table has a TCA structure. We can proceed.
 					if (isset($GLOBALS['TCA'][$tableCtrl['transForeignTable']])) {
 						$foreignCtrl = $GLOBALS['TCA'][$tableCtrl['transForeignTable']]['ctrl'];
@@ -310,9 +315,9 @@ class tx_overlays {
 									// An overlay exists, apply it
 								if (isset($overlays[$row['uid']])) {
 									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']][$row['pid']]);
-								}
+
 									// No overlay exists
-								else {
+								} else {
 										// Take original record, only if non-translated are not hidden
 									if ($OLmode != 'hideNonTranslated') {
 										$overlaidRecordset[] = $row;
@@ -322,20 +327,20 @@ class tx_overlays {
 								// Return the overlaid recordset
 							return $overlaidRecordset;
 						}
-					}
+
 						// The foreign table has no TCA definition, it's impossible to perform overlays
 						// Return recordset as is
-					else {
+					} else {
 						return $recordset;
 					}
-				}
+
 					// No appropriate language fields defined in TCA, return recordset unchanged
-				else {
+				} else {
 					return $recordset;
 				}
-			}
+
 				// No TCA for table, return recordset unchanged
-			else {
+			} else {
 				return $recordset;
 			}
 		}
@@ -463,8 +468,7 @@ class tx_overlays {
 
 
 
-if (defined('TYPO3_MODE') && $TYPO3_CONF_VARS[TYPO3_MODE]['XCLASS']['ext/overlays/class.tx_overlays.php'])	{
+if (defined('TYPO3_MODE') && $TYPO3_CONF_VARS[TYPO3_MODE]['XCLASS']['ext/overlays/class.tx_overlays.php']) {
 	include_once($TYPO3_CONF_VARS[TYPO3_MODE]['XCLASS']['ext/overlays/class.tx_overlays.php']);
 }
-
 ?>
