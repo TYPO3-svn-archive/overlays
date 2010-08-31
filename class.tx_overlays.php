@@ -241,6 +241,7 @@ class tx_overlays {
 
 						// Test with the first row if languageField is present
 					if (isset($recordset[0][$tableCtrl['languageField']])) {
+
 							// Filter out records that are not in the default or [ALL] language, should there be any
 						$filteredRecordset = array();
 						foreach ($recordset as $row) {
@@ -248,7 +249,6 @@ class tx_overlays {
 								$filteredRecordset[] = $row;
 							}
 						}
-
 							// Will try to overlay a record only if the sys_language_content value is larger than zero,
 							// that is, it is not default or [ALL] language
 						if ($sys_language_content > 0) {
@@ -264,12 +264,16 @@ class tx_overlays {
 
 								// Now loop on the filtered recordset and try to overlay each record
 							$overlaidRecordset = array();
-							foreach ($filteredRecordset as $row) {
-									// An overlay exists, apply it
-								if (isset($overlays[$row['uid']][$row['pid']])) {
+							foreach ($recordset as $row) {
+									// If record is already in the right language, keep it as is
+								if ($row[$tableCtrl['languageField']] == $sys_language_content) {
+									$overlaidRecordset[] = $row;
+
+									// Else try to apply an overlay
+								} elseif (isset($overlays[$row['uid']][$row['pid']])) {
 									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']][$row['pid']]);
 
-									// No overlay exists
+									// No overlay exists, apply relevant translation rules
 								} else {
 										// Take original record, only if non-translated are not hidden, or if language is [All]
 									if ($OLmode != 'hideNonTranslated' || $row[$tableCtrl['languageField']] == -1) {
