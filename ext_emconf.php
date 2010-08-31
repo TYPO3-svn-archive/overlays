@@ -1,13 +1,13 @@
 <?php
 
 ########################################################################
-# Extension Manager/Repository config file for ext: "overlays"
+# Extension Manager/Repository config file for ext "overlays".
 #
-# Auto generated 15-09-2008 16:43
+# Auto generated 31-08-2010 17:47
 #
 # Manual updates:
-# Only the data in the array - anything else is removed by next write.
-# "version" and "dependencies" must not be touched!
+# Only the data in the array - everything else is removed by next
+# writing. "version" and "dependencies" must not be touched!
 ########################################################################
 
 $EM_CONF[$_EXTKEY] = array(
@@ -29,7 +29,7 @@ $EM_CONF[$_EXTKEY] = array(
 	'clearCacheOnLoad' => 0,
 	'lockType' => '',
 	'author_company' => '',
-	'version' => '0.4.0',
+	'version' => '1.0.0',
 	'constraints' => array(
 		'depends' => array(
 		),
@@ -38,7 +38,9 @@ $EM_CONF[$_EXTKEY] = array(
 		'suggests' => array(
 		),
 	),
-	'_md5_values_when_last_written' => 'a:5:{s:9:"ChangeLog";s:4:"515b";s:10:"README.txt";s:4:"ee2d";s:12:"ext_icon.gif";s:4:"1bdc";s:19:"doc/wizard_form.dat";s:4:"7f02";s:20:"doc/wizard_form.html";s:4:"02e5";}',
+	'_md5_values_when_last_written' => 'a:7:{s:9:"ChangeLog";s:4:"b1f4";s:10:"README.txt";s:4:"b729";s:21:"class.tx_overlays.php";s:4:"0507";s:16:"ext_autoload.php";s:4:"ad6d";s:12:"ext_icon.gif";s:4:"73e0";s:14:"doc/manual.pdf";s:4:"144c";s:14:"doc/manual.sxw";s:4:"9dff";}',
+	'suggests' => array(
+	),
 );
 
 ?>
