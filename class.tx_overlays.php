@@ -34,7 +34,7 @@
  *
  * $Id$
  */
-class tx_overlays {
+final class tx_overlays {
 
 	/**
 	 * This method is designed to get all the records from a given table, properly overlaid with versions and translations
@@ -50,7 +50,7 @@ class tx_overlays {
 	 * @param	string		$limit: Optional LIMIT value ([begin,]max), if none, supply blank string.
 	 * @return	array		Fully overlaid recordset
 	 */
-	public function getAllRecordsForTable($selectFields, $fromTable, $whereClause = '', $groupBy = '', $orderBy = '', $limit = '') {
+	public static function getAllRecordsForTable($selectFields, $fromTable, $whereClause = '', $groupBy = '', $orderBy = '', $limit = '') {
 			// SQL WHERE clause is the base clause passed to the function, plus language condition, plus enable fields condition
 		$where = $whereClause;
 		$condition = self::getLanguageCondition($fromTable);
@@ -105,7 +105,7 @@ class tx_overlays {
 	 * @param	string		$table: name of the table to assemble the condition for
 	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	public function getLanguageCondition($table) {
+	public static function getLanguageCondition($table) {
 		$languageCondition = '';
 
 			// First check if there's actually a TCA for the given table
@@ -139,7 +139,7 @@ class tx_overlays {
 	 * @param	array		$ignoreArray: use keys like "disabled", "starttime", "endtime", "fe_group" (i.e. keys from "enablefields" in TCA) and set values to TRUE to exclude corresponding conditions from WHERE clause
 	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	public function getEnableFieldsCondition($table, $showHidden = FALSE, $ignoreArray = array()) {
+	public static function getEnableFieldsCondition($table, $showHidden = FALSE, $ignoreArray = array()) {
 		$enableCondition = '';
 			// First check if table has a TCA ctrl section, otherwise t3lib_page::enableFields() will die() (stupid thing!)
 		if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
@@ -163,7 +163,7 @@ class tx_overlays {
 	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
 	 * @return	string		Possibly modified list of fields to select
 	 */
-	public function selectOverlayFields($table, $selectFields) {
+	public static function selectOverlayFields($table, $selectFields) {
 		$select = $selectFields;
 
 			// Check if the table indeed has a TCA
@@ -227,7 +227,7 @@ class tx_overlays {
 	 * @param	string		$OLmodeOverlay mode. If "hideNonTranslated" then records without translation will not be returned un-translated but unset (and return value is false)
 	 * @return	array		Returns the full overlaid recordset. If $OLmode is "hideNonTranslated" then some records may be missing if no translation was found.
 	 */
-	public function overlayRecordSet($table, $recordset, $sys_language_content, $OLmode = '') {
+	public static function overlayRecordSet($table, $recordset, $sys_language_content, $OLmode = '') {
 
 			// Test with the first row if uid and pid fields are present
 		if (!empty($recordset[0]['uid']) && !empty($recordset[0]['pid'])) {
@@ -363,7 +363,7 @@ class tx_overlays {
 	 * @param	integer		$sys_language_content: uid of the system language to translate to
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
-	public function getOverlayRecords($table, $uids, $sys_language_content) {
+	public static function getOverlayRecords($table, $uids, $sys_language_content) {
 		if (is_array($uids) && count($uids) > 0) {
 			if (isset($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'])) {
 				return self::getForeignOverlayRecords($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'], $uids, $sys_language_content);
@@ -384,7 +384,7 @@ class tx_overlays {
 	 * @param	integer		$sys_language_content: uid of the system language to translate to
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
-	public function getLocalOverlayRecords($table, $uids, $sys_language_content) {
+	public static function getLocalOverlayRecords($table, $uids, $sys_language_content) {
 		$overlays = array();
 		if (is_array($uids) && count($uids) > 0) {
 			$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
@@ -420,7 +420,7 @@ class tx_overlays {
 	 * @param	integer		$sys_language_content: uid of the system language to translate to
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
-	public function getForeignOverlayRecords($table, $uids, $sys_language_content) {
+	public static function getForeignOverlayRecords($table, $uids, $sys_language_content) {
 		$overlays = array();
 		if (is_array($uids) && count($uids) > 0) {
 			$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
@@ -450,7 +450,7 @@ class tx_overlays {
 	 * @param	array	$overlay: overlay of the record
 	 * @return	array	Overlaid record
 	 */
-	public function overlaySingleRecord($table, $record, $overlay) {
+	public static function overlaySingleRecord($table, $record, $overlay) {
 		$overlaidRecord = $record;
 		$overlaidRecord['_LOCALIZED_UID'] = $overlay['uid'];
 		foreach ($record as $key => $value) {
@@ -467,11 +467,5 @@ class tx_overlays {
 		}
 		return $overlaidRecord;
 	}
-}
-
-
-
-if (defined('TYPO3_MODE') && $TYPO3_CONF_VARS[TYPO3_MODE]['XCLASS']['ext/overlays/class.tx_overlays.php']) {
-	include_once($TYPO3_CONF_VARS[TYPO3_MODE]['XCLASS']['ext/overlays/class.tx_overlays.php']);
 }
 ?>
