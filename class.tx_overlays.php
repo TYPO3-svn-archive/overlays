@@ -94,7 +94,6 @@ final class tx_overlays {
 
 			// Execute the query itself
 		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit);
-echo $GLOBALS['TYPO3_DB']->SELECTquery($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit);
 			// Assemble a raw recordset
 		$records = array();
 		while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
