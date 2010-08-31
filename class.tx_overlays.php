@@ -51,8 +51,9 @@ final class tx_overlays {
 	 * @return	array		Fully overlaid recordset
 	 */
 	public static function getAllRecordsForTable($selectFields, $fromTable, $whereClause = '', $groupBy = '', $orderBy = '', $limit = '') {
-			// SQL WHERE clause is the base clause passed to the function, plus language condition, plus enable fields condition
+			// SQL WHERE clause is the base clause passed to the function
 		$where = $whereClause;
+			// Add language condition
 		$condition = self::getLanguageCondition($fromTable);
 		if (!empty($condition)) {
 			if (!empty($where)) {
@@ -60,7 +61,16 @@ final class tx_overlays {
 			}
 			$where .= '(' . $condition . ')';
 		}
+			// Add enable fields condition
 		$condition = self::getEnableFieldsCondition($fromTable);
+		if (!empty($condition)) {
+			if (!empty($where)) {
+				$where .= ' AND ';
+			}
+			$where .= '(' . $condition . ')';
+		}
+			// Add workspace condition
+		$condition = self::getWorkspaceCondition($fromTable);
 		if (!empty($condition)) {
 			if (!empty($where)) {
 				$where .= ' AND ';
@@ -84,6 +94,7 @@ final class tx_overlays {
 
 			// Execute the query itself
 		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit);
+echo $GLOBALS['TYPO3_DB']->SELECTquery($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit);
 			// Assemble a raw recordset
 		$records = array();
 		while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
@@ -152,6 +163,27 @@ final class tx_overlays {
 		}
 			// TODO: throw an exception if the given table has no TCA? (t3lib_page::enableFields() used a die)
 		return $enableCondition;
+	}
+
+	/**
+	 * This method assembles the proper condition with regards to versioning/workspaces
+	 *
+	 * NOTE: this is not complete yet! It just makes sure that only live records
+	 * are shown in the FE, but workspace preview does not work yet.
+	 *
+	 * @param	string		$table: name of the table to build the condition for
+	 * @return	string
+	 */
+	public static function getWorkspaceCondition($table) {
+		$workspaceCondition = '';
+			// If the table has some TCA definition, check workspace handling
+		if (isset($GLOBALS['TCA'][$table]['ctrl']) && !empty($GLOBALS['TCA'][$table]['ctrl']['versioningWS'])) {
+				// If not performing a workspace preview, make sure to grab only live records
+			if (!$GLOBALS['TSFE']->sys_page->versioningPreview) {
+				$workspaceCondition .= $table . '.t3ver_oid = 0 AND ' . $table . '.t3ver_state <= 0';
+			}
+		}
+		return $workspaceCondition;
 	}
 
 	/**
