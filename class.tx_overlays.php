@@ -117,14 +117,13 @@ class tx_overlays {
 				if (isset($GLOBALS['TSFE']->sys_language_contentOL) && isset($tableCtrlTCA['transOrigPointerField'])) {
 					$languageCondition = $table . '.' . $tableCtrlTCA['languageField'] . ' IN (0,-1)'; // Default language and "all" language
 
-					// If current language is not default, select elements that exist only for current language
-					// That means elements that exist for current language but have no parent element
+						// If current language is not default, select elements that exist only for current language
+						// That means elements that exist for current language but have no parent element
 					if ($GLOBALS['TSFE']->sys_language_content > 0) {
 						$languageCondition .= ' OR (' . $table . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "' AND " . $table . '.' . $tableCtrlTCA['transOrigPointerField'] . " = '0')";
 					}
-				}
-				else {
-					$languageCondition = $table.'.'.$tableCtrlTCA['languageField']." = '".$GLOBALS['TSFE']->sys_language_content."'";
+				} else {
+					$languageCondition = $table . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "'";
 				}
 			}
 		}
