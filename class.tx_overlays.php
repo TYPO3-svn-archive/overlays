@@ -35,6 +35,7 @@
  * $Id$
  */
 final class tx_overlays {
+	static public $tableFields = array();
 
 	/**
 	 * This method is designed to get all the records from a given table, properly overlaid with versions and translations
@@ -91,14 +92,31 @@ final class tx_overlays {
 				$doOverlays = FALSE;
 			}
 		}
+			// Set versioning flag according to preview parameter
+		$doVersioning = !empty($GLOBALS['TSFE']->sys_page->versioningPreview);
+
+			// Add base fields (uid, pid) if translations or versioning are activated
+		if ($doOverlays || $doVersioning) {
+			try {
+				$selectFields = self::selectBaseFields($fromTable, $selectFields);
+			}
+			catch (Exception $e) {
+				// Do nothing
+			}
+		}
 
 			// Execute the query itself
-		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit);
-			// Assemble a raw recordset
-		$records = array();
-		while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
-			$records[] = $row;
+//t3lib_div::debug($GLOBALS['TYPO3_DB']->SELECTquery($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit));
+		$records = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit);
+//t3lib_div::debug($records, 'before versioning');
+			// Perform version overlays, if needed
+		if ($doVersioning) {
+			$numRecords = count($records);
+			for ($i = 0; $i < $numRecords; $i++) {
+				$GLOBALS['TSFE']->sys_page->versionOL($fromTable, $records[$i]);
+			}
 		}
+//t3lib_div::debug($records, 'after versioning');
 		$GLOBALS['TYPO3_DB']->sql_free_result($res);
 
 			// If we have both a uid and a pid field, we can proceed with overlaying the records
@@ -177,12 +195,70 @@ final class tx_overlays {
 		$workspaceCondition = '';
 			// If the table has some TCA definition, check workspace handling
 		if (isset($GLOBALS['TCA'][$table]['ctrl']) && !empty($GLOBALS['TCA'][$table]['ctrl']['versioningWS'])) {
-				// If not performing a workspace preview, make sure to grab only live records
-			if (!$GLOBALS['TSFE']->sys_page->versioningPreview) {
-				$workspaceCondition .= $table . '.t3ver_oid = 0 AND ' . $table . '.t3ver_state <= 0';
+
+				// Base condition to get only live records
+				// (they get overlaid afterwards in case of preview)
+			$workspaceCondition .= ' (' . $table . '.t3ver_state <= 0 AND ' . $table . '.t3ver_oid = 0)';
+
+				// Additional conditions when previewing a workspace
+			if ($GLOBALS['TSFE']->sys_page->versioningPreview) {
+					// Select new records (which exist only in the workspace)
+				$workspaceCondition .= ' OR (' . $table . '.t3ver_state = -1 AND ' . $table . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
 			}
 		}
 		return $workspaceCondition;
+	}
+
+	/**
+	 * This method gets all fields for a given table and stores that list
+	 * into an internal cache array
+	 * 
+	 * @param	string	$table: name of the table to fetch the fields for
+	 * @return	void
+	 */
+	public static function getAllFieldsForTable($table) {
+		self::$tableFields[$table] = $GLOBALS['TYPO3_DB']->admin_get_fields($table);
+	}
+
+	/**
+	 * This method makes sure that base fields such as uid and pid are included
+	 * in the list of selected fields. These fields are absolutely necessary when
+	 * translations or versioning overlays are being made.
+	 * The method throws an exception if the fields are not available.
+	 *
+	 * @param	string	$table: Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param	string	$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @return	string	The modified SELECT string
+	 */
+	public static function selectBaseFields($table, $selectFields) {
+		$select = $selectFields;
+			// Don't bother if all fields are selected anyway
+		if ($selectFields != '*') {
+				// Check if uid and pid fields are already among the selected fields
+				// If not and if available in table, add them
+			$hasUidField = strpos($selectFields, 'uid');
+			$hasPidField = strpos($selectFields, 'pid');
+			if ($hasUidField === FALSE || $hasPidField === FALSE) {
+					// Make sure we have the list of fields for the given table
+				if (!isset(self::$tableFields[$table])) {
+					self::getAllFieldsForTable($table);
+				}
+					// Add the fields, if available
+				if (isset(self::$tableFields[$table]['uid'])) {
+					$select .= ', ' . $table . '.uid';
+					$hasUidField = TRUE;
+				}
+				if (isset(self::$tableFields[$table]['pid'])) {
+					$select .= ', ' . $table . '.pid';
+					$hasPidField = TRUE;
+				}
+					// If one of the fields is still missing after that, throw an exception
+				if ($hasUidField === FALSE || $hasPidField === FALSE) {
+					throw new Exception('Not all base fields are available.', 1284463019);
+				}
+			}
+		}
+		return $select;
 	}
 
 	/**
@@ -197,55 +273,40 @@ final class tx_overlays {
 	public static function selectOverlayFields($table, $selectFields) {
 		$select = $selectFields;
 
-			// Check if the table indeed has a TCA
-		if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
+			// If all fields are selected anyway, no need to worry
+		if ($selectFields != '*') {
+				// Check if the table indeed has a TCA
+			if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
 
-				// If the table uses a foreign table for translations, there are no fields to add
-				// Return original select fields directly
-			if ($GLOBALS['TCA'][$table]['ctrl']['transForeignTable']) {
-				return $selectFields;
-			} else {
-				$languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
+					// Continue only if table is not using foreign tables for translations
+					// (in this case no additional field is needed) and has a language field
+				if (empty($GLOBALS['TCA'][$table]['ctrl']['transForeignTable']) && !empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
+					$languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
 
-					// In order to be properly overlaid, a table has to have a uid, a pid and languageField
-				$hasUidField = strpos($selectFields, 'uid');
-				$hasPidField = strpos($selectFields, 'pid');
-				$hasLanguageField = strpos($selectFields, $languageField);
-				if ($hasUidField === FALSE || $hasPidField === FALSE || $hasLanguageField === FALSE) {
-					$availableFields = $GLOBALS['TYPO3_DB']->admin_get_fields($table);
-					if (isset($availableFields['uid'])) {
-						if ($selectFields != '*') {
-							$select .= ', ' . $table . '.uid';
+						// In order to be properly overlaid, a table has to have a given languageField
+					$hasLanguageField = strpos($selectFields, $languageField);
+					if ($hasLanguageField === FALSE) {
+							// Make sure we have the list of fields for the given table
+						if (!isset(self::$tableFields[$table])) {
+							self::getAllFieldsForTable($table);
 						}
-						$hasUidField = TRUE;
-					}
-					if (isset($availableFields['pid'])) {
-						if ($selectFields != '*') {
-							$select .= ', ' . $table . '.pid';
-						}
-						$hasPidField = TRUE;
-					}
-					if (isset($availableFields[$languageField])) {
-						if ($selectFields != '*') {
+						if (isset(self::$tableFields[$table][$languageField])) {
 							$select .= ', ' . $table . '.'.$languageField;
+							$hasLanguageField = TRUE;
 						}
-						$hasLanguageField = TRUE;
+					}
+						// If language field is still missing after that, throw an exception
+					if ($hasLanguageField === FALSE) {
+						throw new Exception('Language field not available.', 1284463837);
 					}
 				}
-					// If one of the fields is still missing after that, throw an exception
-				if ($hasUidField === FALSE || $hasPidField === FALSE || $hasLanguageField === FALSE) {
-					throw new Exception('Not all overlay fields available.');
 
-					// Else return the modified list of fields to select
-				} else {
-					return $select;
-				}
+				// The table has no TCA, throw an exception
+			} else {
+				throw new Exception('No TCA for table, cannot add overlay fields.');
 			}
-
-			// The table has no TCA, throw an exception
-		} else {
-			throw new Exception('No TCA for table, cannot add overlay fields.');
 		}
+		return $select;
 	}
 
 	/**
