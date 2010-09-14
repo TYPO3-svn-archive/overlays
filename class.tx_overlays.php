@@ -117,7 +117,6 @@ final class tx_overlays {
 			}
 		}
 //t3lib_div::debug($records, 'after versioning');
-		$GLOBALS['TYPO3_DB']->sql_free_result($res);
 
 			// If we have both a uid and a pid field, we can proceed with overlaying the records
 		if ($doOverlays) {
