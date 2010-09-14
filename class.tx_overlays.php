@@ -87,21 +87,29 @@ final class tx_overlays {
 			try {
 				$selectFields = self::selectOverlayFields($fromTable, $selectFields);
 				$doOverlays = TRUE;
-			}
-			catch (Exception $e) {
+			} catch (Exception $e) {
 				$doOverlays = FALSE;
 			}
 		}
-			// Set versioning flag according to preview parameter
-		$doVersioning = !empty($GLOBALS['TSFE']->sys_page->versioningPreview);
+			// If versioning preview is on, prepare for version overlays
+		$doVersioning = FALSE;
+		if ($GLOBALS['TSFE']->sys_page->versioningPreview) {
+			try {
+				$selectFields = self::selectVersioningFields($fromTable, $selectFields);
+				$doVersioning = TRUE;
+			} catch (Exception $e) {
+				$doVersioning = FALSE;
+			}
+		}
 
 			// Add base fields (uid, pid) if translations or versioning are activated
 		if ($doOverlays || $doVersioning) {
 			try {
 				$selectFields = self::selectBaseFields($fromTable, $selectFields);
-			}
-			catch (Exception $e) {
-				// Do nothing
+			} catch (Exception $e) {
+					// Neither translations nor versioning can happen without uid and pid
+				$doOverlays = FALSE;
+				$doVersioning = FALSE;
 			}
 		}
 
@@ -114,6 +122,11 @@ final class tx_overlays {
 			$numRecords = count($records);
 			for ($i = 0; $i < $numRecords; $i++) {
 				$GLOBALS['TSFE']->sys_page->versionOL($fromTable, $records[$i]);
+					// The versioned record may actually be FALSE if it is meant to be deleted
+					// in the workspace. To be really clean, unset it.
+				if ($records[$i] === FALSE) {
+					unset($records[$i]);
+				}
 			}
 		}
 //t3lib_div::debug($records, 'after versioning');
@@ -302,7 +315,50 @@ final class tx_overlays {
 
 				// The table has no TCA, throw an exception
 			} else {
-				throw new Exception('No TCA for table, cannot add overlay fields.');
+				throw new Exception('No TCA for table, cannot add overlay fields.', 1284474025);
+			}
+		}
+		return $select;
+	}
+
+	/**
+	 * This method makes sure that all the fields necessary for proper versioning overlays are included
+	 * in the list of selected fields and exist in the table being queried
+	 * If not, it throws an exception
+	 *
+	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @return	string		Possibly modified list of fields to select
+	 */
+	public static function selectVersioningFields($table, $selectFields) {
+		$select = $selectFields;
+
+			// If all fields are selected anyway, no need to worry
+		if ($selectFields != '*') {
+				// Check if the table indeed has a TCA and versioning information
+			if (isset($GLOBALS['TCA'][$table]['ctrl']) && !empty($GLOBALS['TCA'][$table]['ctrl']['versioningWS'])) {
+
+					// In order for versioning to work properly, the version state field is needed
+				$stateField = 't3ver_state';
+				$hasStateField = strpos($selectFields, $stateField);
+				if ($hasStateField === FALSE) {
+						// Make sure we have the list of fields for the given table
+					if (!isset(self::$tableFields[$table])) {
+						self::getAllFieldsForTable($table);
+					}
+					if (isset(self::$tableFields[$table][$stateField])) {
+						$select .= ', ' . $table . '.'.$stateField;
+						$hasStateField = TRUE;
+					}
+				}
+					// If state field is still missing after that, throw an exception
+				if ($hasStateField === FALSE) {
+					throw new Exception('Fields for versioning were not all available.', 1284473941);
+				}
+
+				// The table has no TCA, throw an exception
+			} else {
+				throw new Exception('No TCA for table, cannot add versioning fields.', 1284474016);
 			}
 		}
 		return $select;
