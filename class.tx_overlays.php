@@ -71,7 +71,7 @@ final class tx_overlays {
 			$where .= '(' . $condition . ')';
 		}
 			// Add workspace condition
-		$condition = self::getWorkspaceCondition($fromTable);
+		$condition = self::getVersioningCondition($fromTable);
 		if (!empty($condition)) {
 			if (!empty($where)) {
 				$where .= ' AND ';
@@ -82,12 +82,13 @@ final class tx_overlays {
 			// If the language is not default, prepare for overlays
 		$doOverlays = FALSE;
 		if ($GLOBALS['TSFE']->sys_language_content > 0) {
-				// Make sure the list of selected fields includes "uid", "pid" and language fields so that language overlays can be gotten properly
-				// If these do not exist in the queried table, the recordset is returned as is, without overlay
+				// Make sure the list of selected fields includes the necessary language fields
+				// so that language overlays can be gotten properly
 			try {
 				$selectFields = self::selectOverlayFields($fromTable, $selectFields);
 				$doOverlays = TRUE;
 			} catch (Exception $e) {
+					// If the language fields could not be gotten, avoid overlay process
 				$doOverlays = FALSE;
 			}
 		}
@@ -204,7 +205,7 @@ final class tx_overlays {
 	 * @param	string		$table: name of the table to build the condition for
 	 * @return	string
 	 */
-	public static function getWorkspaceCondition($table) {
+	public static function getVersioningCondition($table) {
 		$workspaceCondition = '';
 			// If the table has some TCA definition, check workspace handling
 		if (isset($GLOBALS['TCA'][$table]['ctrl']) && !empty($GLOBALS['TCA'][$table]['ctrl']['versioningWS'])) {
@@ -219,6 +220,8 @@ final class tx_overlays {
 					// This is achieved by selecting the placeholders, which will be overlaid
 					// with the actual content later when calling t3lib_page::versionOL()
 				$workspaceCondition .= ' OR (' . $table . '.t3ver_state = 1 AND ' . $table . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
+					// Move-to placeholder
+				$workspaceCondition .= ' OR (' . $table . '.t3ver_state = 3 AND ' . $table . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
 			}
 		}
 		return $workspaceCondition;
@@ -499,14 +502,14 @@ final class tx_overlays {
 							}
 
 								// Get all overlay records
-							$overlays = self::getForeignOverlayRecords($tableCtrl['transForeignTable'], $uidList, $currentLanguage);
+							$overlays = self::getForeignOverlayRecords($tableCtrl['transForeignTable'], $uidList, $currentLanguage, $doVersioning);
 
 								// Now loop on the filtered recordset and try to overlay each record
 							$overlaidRecordset = array();
 							foreach ($recordset as $row) {
 									// An overlay exists, apply it
 								if (isset($overlays[$row['uid']])) {
-									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']][$row['pid']]);
+									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']]);
 
 									// No overlay exists
 								} else {
@@ -617,9 +620,10 @@ final class tx_overlays {
 	 * @param	string		$table: name of the table for which to fetch the records
 	 * @param	array		$uids: array of all uid's of the original records for which to fetch the translation
 	 * @param	integer		$currentLanguage: uid of the system language to translate to
+	 * @param	boolean		$doVersioning: true if versioning overlay must be performed
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
-	public static function getForeignOverlayRecords($table, $uids, $currentLanguage) {
+	public static function getForeignOverlayRecords($table, $uids, $currentLanguage, $doVersioning) {
 		$overlays = array();
 		if (is_array($uids) && count($uids) > 0) {
 			$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
@@ -627,13 +631,21 @@ final class tx_overlays {
 			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
 				'*',
 				$table,
-					$tableCtrl['languageField'].' = '.intval($currentLanguage).
+					$tableCtrl['languageField'].' = ' . intval($currentLanguage).
 					' AND ' . $tableCtrl['transOrigPointerField'] . ' IN (' . implode(', ', $uids) . ')' .
 					' AND ' . self::getEnableFieldsCondition($table)
 			);
 				// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
 			while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
-				$overlays[$row[$tableCtrl['transOrigPointerField']]] = $row;
+					// Perform version overlays, if needed
+				if ($doVersioning) {
+					$GLOBALS['TSFE']->sys_page->versionOL($table, $row);
+				}
+					// The versioned record may actually be FALSE if it is meant to be deleted
+					// in the workspace. To be really clean, unset it.
+				if ($row !== FALSE) {
+					$overlays[$row[$tableCtrl['transOrigPointerField']]] = $row;
+				}
 			}
 			$GLOBALS['TYPO3_DB']->sql_free_result($res);
 		}
