@@ -227,7 +227,7 @@ final class tx_overlays {
 	/**
 	 * This method gets all fields for a given table and stores that list
 	 * into an internal cache array
-	 * 
+	 *
 	 * @param	string	$table: name of the table to fetch the fields for
 	 * @return	void
 	 */
@@ -279,14 +279,33 @@ final class tx_overlays {
 	/**
 	 * This method makes sure that all the fields necessary for proper overlaying are included
 	 * in the list of selected fields and exist in the table being queried
-	 * If not, it throws an exception
+	 * If not, it lets the exception thrown by tx_context::selectOverlayFieldsArray() bubble up
 	 *
 	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
 	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
 	 * @return	string		Possibly modified list of fields to select
 	 */
 	public static function selectOverlayFields($table, $selectFields) {
-		$select = $selectFields;
+		$additionalFields = self::selectOverlayFieldsArray($table, $selectFields);
+		if (count($additionalFields) > 0) {
+			foreach ($additionalFields as $aField) {
+				$selectFields .= ', ' . $table . '.' . $aField;
+			}
+		}
+		return $selectFields;
+	}
+
+	/**
+	 * This method checks which fields need to be added to the given list of SELECTed fields
+	 * so that language overlays can take place properly
+	 * If some information is missing, it throws an exception
+	 *
+	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @return	array		List of fields to add
+	 */
+	public static function selectOverlayFieldsArray($table, $selectFields) {
+		$additionalFields = array();
 
 			// If all fields are selected anyway, no need to worry
 		if ($selectFields != '*') {
@@ -306,7 +325,7 @@ final class tx_overlays {
 							self::getAllFieldsForTable($table);
 						}
 						if (isset(self::$tableFields[$table][$languageField])) {
-							$select .= ', ' . $table . '.' . $languageField;
+							$additionalFields[] = $languageField;
 							$hasLanguageField = TRUE;
 						}
 					}
@@ -321,7 +340,7 @@ final class tx_overlays {
 				throw new Exception('No TCA for table, cannot add overlay fields.', 1284474025);
 			}
 		}
-		return $select;
+		return $additionalFields;
 	}
 
 	/**
@@ -461,7 +480,7 @@ final class tx_overlays {
 							}
 
 								// Get all overlay records
-							$overlays = $this->getForeignOverlayRecords($tableCtrl['transForeignTable'], $uidList, $currentLanguage);
+							$overlays = self::getForeignOverlayRecords($tableCtrl['transForeignTable'], $uidList, $currentLanguage);
 
 								// Now loop on the filtered recordset and try to overlay each record
 							$overlaidRecordset = array();
@@ -508,18 +527,19 @@ final class tx_overlays {
 	 * This method is a wrapper around getLocalOverlayRecords() and getForeignOverlayRecords().
 	 * It makes it possible to use the same call whether translations are in the same table or
 	 * in a foreign table. This method dispatches accordingly.
-	 * 
+	 *
 	 * @param	string		$table: name of the table for which to fetch the records
 	 * @param	array		$uids: array of all uid's of the original records for which to fetch the translation
 	 * @param	integer		$currentLanguage: uid of the system language to translate to
+	 * @param	boolean		$doVersioning: true if versioning overlay must be performed
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
-	public static function getOverlayRecords($table, $uids, $currentLanguage) {
+	public static function getOverlayRecords($table, $uids, $currentLanguage, $doVersioning) {
 		if (is_array($uids) && count($uids) > 0) {
 			if (isset($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'])) {
 				return self::getForeignOverlayRecords($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'], $uids, $currentLanguage);
 			} else {
-				return self::getLocalOverlayRecords($table, $uids, $currentLanguage);
+				return self::getLocalOverlayRecords($table, $uids, $currentLanguage, $doVersioning);
 			}
 		} else {
 			return array();
@@ -551,7 +571,7 @@ final class tx_overlays {
 				// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
 				// This structure is actually a 2-dimensional array, with the pid as the second key
 				// Because of versioning, there may be several overlays for a given original and matching the pid too
-				// ensures that we are refering to the correct overlay
+				// ensures that we are referring to the correct overlay
 			while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
 					// Perform version overlays, if needed
 				if ($doVersioning) {
