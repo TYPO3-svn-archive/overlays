@@ -346,14 +346,33 @@ final class tx_overlays {
 	/**
 	 * This method makes sure that all the fields necessary for proper versioning overlays are included
 	 * in the list of selected fields and exist in the table being queried
-	 * If not, it throws an exception
+	 * If not, it lets the exception thrown by tx_context::selectVersioningFieldsArray() bubble up
 	 *
 	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
 	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
 	 * @return	string		Possibly modified list of fields to select
 	 */
 	public static function selectVersioningFields($table, $selectFields) {
-		$select = $selectFields;
+		$additionalFields = self::selectVersioningFieldsArray($table, $selectFields);
+		if (count($additionalFields) > 0) {
+			foreach ($additionalFields as $aField) {
+				$selectFields .= ', ' . $table . '.' . $aField;
+			}
+		}
+		return $selectFields;
+	}
+
+	/**
+	 * This method checks which fields need to be added to the given list of SELECTed fields
+	 * so that versioning overlays can take place properly
+	 * If some information is missing, it throws an exception
+	 *
+	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @return	array		List of fields to add
+	 */
+	public static function selectVersioningFieldsArray($table, $selectFields) {
+		$additionalFields = array();
 
 			// If all fields are selected anyway, no need to worry
 		if ($selectFields != '*') {
@@ -369,7 +388,7 @@ final class tx_overlays {
 						self::getAllFieldsForTable($table);
 					}
 					if (isset(self::$tableFields[$table][$stateField])) {
-						$select .= ', ' . $table . '.'.$stateField;
+						$additionalFields[] = $stateField;
 						$hasStateField = TRUE;
 					}
 				}
@@ -383,7 +402,7 @@ final class tx_overlays {
 				throw new Exception('No TCA for table, cannot add versioning fields.', 1284474016);
 			}
 		}
-		return $select;
+		return $additionalFields;
 	}
 
 	/**
