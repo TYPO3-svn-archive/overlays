@@ -230,12 +230,16 @@ final class tx_overlays {
 	/**
 	 * This method gets all fields for a given table and stores that list
 	 * into an internal cache array
+	 * It then returns the list of fields
 	 *
 	 * @param	string	$table: name of the table to fetch the fields for
-	 * @return	void
+	 * @return	array	List of fields for the given table
 	 */
 	public static function getAllFieldsForTable($table) {
-		self::$tableFields[$table] = $GLOBALS['TYPO3_DB']->admin_get_fields($table);
+		if (!isset(self::$tableFields[$table])) {
+			self::$tableFields[$table] = $GLOBALS['TYPO3_DB']->admin_get_fields($table);
+		}
+		return self::$tableFields[$table];
 	}
 
 	/**
@@ -254,20 +258,19 @@ final class tx_overlays {
 		if ($selectFields != '*') {
 			$hasUidField = FALSE;
 			$hasPidField = FALSE;
-				// Make sure we have the list of fields for the given table
-			if (!isset(self::$tableFields[$table])) {
-				self::getAllFieldsForTable($table);
-			}
+				// Get the list of fields for the given table
+			$tableFields = self::getAllFieldsForTable($table);
+
 				// Add the fields, if available
 				// NOTE: this may add the fields twice if they are already
 				// in the list of selected fields, but that doesn't hurt
 				// It doesn't seem worth making a very precise parsing of the list
 				// of selected fields just to avoid duplicates
-			if (isset(self::$tableFields[$table]['uid'])) {
+			if (isset($tableFields['uid'])) {
 				$select .= ', ' . $table . '.uid';
 				$hasUidField = TRUE;
 			}
-			if (isset(self::$tableFields[$table]['pid'])) {
+			if (isset($tableFields['pid'])) {
 				$select .= ', ' . $table . '.pid';
 				$hasPidField = TRUE;
 			}
@@ -323,11 +326,9 @@ final class tx_overlays {
 						// In order to be properly overlaid, a table has to have a given languageField
 					$hasLanguageField = strpos($selectFields, $languageField);
 					if ($hasLanguageField === FALSE) {
-							// Make sure we have the list of fields for the given table
-						if (!isset(self::$tableFields[$table])) {
-							self::getAllFieldsForTable($table);
-						}
-						if (isset(self::$tableFields[$table][$languageField])) {
+							// Get the list of fields for the given table
+						$tableFields = self::getAllFieldsForTable($table);
+						if (isset($tableFields[$languageField])) {
 							$additionalFields[] = $languageField;
 							$hasLanguageField = TRUE;
 						}
@@ -386,11 +387,9 @@ final class tx_overlays {
 				$stateField = 't3ver_state';
 				$hasStateField = strpos($selectFields, $stateField);
 				if ($hasStateField === FALSE) {
-						// Make sure we have the list of fields for the given table
-					if (!isset(self::$tableFields[$table])) {
-						self::getAllFieldsForTable($table);
-					}
-					if (isset(self::$tableFields[$table][$stateField])) {
+						// Get the list of fields for the given table
+					$tableFields = self::getAllFieldsForTable($table);
+					if (isset($tableFields[$stateField])) {
 						$additionalFields[] = $stateField;
 						$hasStateField = TRUE;
 					}
