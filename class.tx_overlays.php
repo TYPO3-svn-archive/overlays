@@ -143,11 +143,15 @@ final class tx_overlays {
 	 * This method gets the SQL condition to apply for fetching the proper language
 	 * depending on the localization settings in the TCA
 	 *
-	 * @param	string		$table: name of the table to assemble the condition for
+	 * @param	string		$table: (true) name of the table to assemble the condition for
+	 * @param	string		$alias: alias to use for the table instead of its true name
 	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	public static function getLanguageCondition($table) {
+	public static function getLanguageCondition($table, $alias = '') {
 		$languageCondition = '';
+		if (empty($alias)) {
+			$alias = $table;
+		}
 
 			// First check if there's actually a TCA for the given table
 		if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
@@ -156,15 +160,16 @@ final class tx_overlays {
 				// Assemble language condition only if a language field is defined
 			if (!empty($tableCtrlTCA['languageField'])) {
 				if (isset($GLOBALS['TSFE']->sys_language_contentOL) && isset($tableCtrlTCA['transOrigPointerField'])) {
-					$languageCondition = $table . '.' . $tableCtrlTCA['languageField'] . ' IN (0,-1)'; // Default language and "all" language
+						// Default language and "all" language
+					$languageCondition = $alias . '.' . $tableCtrlTCA['languageField'] . ' IN (0,-1)';
 
 						// If current language is not default, select elements that exist only for current language
 						// That means elements that exist for current language but have no parent element
 					if ($GLOBALS['TSFE']->sys_language_content > 0) {
-						$languageCondition .= ' OR (' . $table . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "' AND " . $table . '.' . $tableCtrlTCA['transOrigPointerField'] . " = '0')";
+						$languageCondition .= ' OR (' . $alias . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "' AND " . $alias . '.' . $tableCtrlTCA['transOrigPointerField'] . " = '0')";
 					}
 				} else {
-					$languageCondition = $table . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "'";
+					$languageCondition = $alias . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "'";
 				}
 			}
 		}
@@ -202,26 +207,31 @@ final class tx_overlays {
 	 * NOTE: this is not complete yet! It just makes sure that only live records
 	 * are shown in the FE, but workspace preview does not work yet.
 	 *
-	 * @param	string		$table: name of the table to build the condition for
-	 * @return	string
+	 * @param	string		$table: (true) name of the table to build the condition for
+	 * @param	string		$alias: alias to use for the table instead of its true name
+	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	public static function getVersioningCondition($table) {
+	public static function getVersioningCondition($table, $alias) {
 		$workspaceCondition = '';
+		if (empty($alias)) {
+			$alias = $table;
+		}
+
 			// If the table has some TCA definition, check workspace handling
 		if (isset($GLOBALS['TCA'][$table]['ctrl']) && !empty($GLOBALS['TCA'][$table]['ctrl']['versioningWS'])) {
 
 				// Base condition to get only live records
 				// (they get overlaid afterwards in case of preview)
-			$workspaceCondition .= ' (' . $table . '.t3ver_state <= 0 AND ' . $table . '.t3ver_oid = 0)';
+			$workspaceCondition .= ' (' . $alias . '.t3ver_state <= 0 AND ' . $alias . '.t3ver_oid = 0)';
 
 				// Additional conditions when previewing a workspace
 			if ($GLOBALS['TSFE']->sys_page->versioningPreview) {
 					// Select new records (which exist only in the workspace)
 					// This is achieved by selecting the placeholders, which will be overlaid
 					// with the actual content later when calling t3lib_page::versionOL()
-				$workspaceCondition .= ' OR (' . $table . '.t3ver_state = 1 AND ' . $table . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
+				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = 1 AND ' . $alias . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
 					// Move-to placeholder
-				$workspaceCondition .= ' OR (' . $table . '.t3ver_state = 3 AND ' . $table . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
+				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = 3 AND ' . $alias . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
 			}
 		}
 		return $workspaceCondition;
