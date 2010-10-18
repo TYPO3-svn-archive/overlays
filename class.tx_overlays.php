@@ -222,7 +222,7 @@ final class tx_overlays {
 
 				// Base condition to get only live records
 				// (they get overlaid afterwards in case of preview)
-			$workspaceCondition .= ' (' . $alias . '.t3ver_state <= 0 AND ' . $alias . '.t3ver_oid = 0)';
+			$workspaceCondition .= '(' . $alias . '.t3ver_state <= 0 AND ' . $alias . '.t3ver_oid = 0)';
 
 				// Additional conditions when previewing a workspace
 			if ($GLOBALS['TSFE']->sys_page->versioningPreview) {
