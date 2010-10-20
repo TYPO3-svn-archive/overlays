@@ -211,7 +211,7 @@ final class tx_overlays {
 	 * @param	string		$alias: alias to use for the table instead of its true name
 	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	public static function getVersioningCondition($table, $alias) {
+	public static function getVersioningCondition($table, $alias = '') {
 		$workspaceCondition = '';
 		if (empty($alias)) {
 			$alias = $table;
@@ -568,7 +568,7 @@ final class tx_overlays {
 	public static function getOverlayRecords($table, $uids, $currentLanguage, $doVersioning) {
 		if (is_array($uids) && count($uids) > 0) {
 			if (isset($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'])) {
-				return self::getForeignOverlayRecords($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'], $uids, $currentLanguage);
+				return self::getForeignOverlayRecords($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'], $uids, $currentLanguage, $doVersioning);
 			} else {
 				return self::getLocalOverlayRecords($table, $uids, $currentLanguage, $doVersioning);
 			}
