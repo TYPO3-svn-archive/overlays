@@ -204,14 +204,25 @@ final class tx_overlays {
 	/**
 	 * This method assembles the proper condition with regards to versioning/workspaces
 	 *
-	 * NOTE: this is not complete yet! It just makes sure that only live records
-	 * are shown in the FE, but workspace preview does not work yet.
+	 * Explanations on parameter $getOverlaysDirectly:
+	 * -----------------------------------------------
+	 * The base condition assembled by this method will get the placeholders for new or modified records.
+	 * This is normally the right way to do things, since those records are overlaid with their workspace version afterwards.
+	 * However if you want this condition as part of a more complicated query implying JOINs,
+	 * selecting placeholders will not work as the relationships are normally built with the version overlays
+	 * and not the placeholders. In this case it is desirable to select the overlays directly,
+	 * which can be achieved by setting $getOverlaysDirectly to TRUE
+	 *
+	 * NOTE 1: this should be considered as experimental for now as it hasn't been tested in all possible scenarios
+	 * NOTE 2: if this all sounds like gibberish, try reading more about workspaces in "Core API"
+	 * (there's also quite some stuff in "Inside TYPO3", but part of it is badly outdated)
 	 *
 	 * @param	string		$table: (true) name of the table to build the condition for
 	 * @param	string		$alias: alias to use for the table instead of its true name
+	 * @param	boolean		$getOverlaysDirectly: flag to choose original/placeholder records or overlays (see explanations above)
 	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	public static function getVersioningCondition($table, $alias = '') {
+	public static function getVersioningCondition($table, $alias = '', $getOverlaysDirectly = FALSE) {
 		$workspaceCondition = '';
 		if (empty($alias)) {
 			$alias = $table;
@@ -226,12 +237,20 @@ final class tx_overlays {
 
 				// Additional conditions when previewing a workspace
 			if ($GLOBALS['TSFE']->sys_page->versioningPreview) {
+					// Choose the version state of records to choose based on the $getOverlaysDirectly flag
+					// (see explanations in the phpDoc comment above)
+				$modificationPlaceholderState = 1;
+				$movePlaceholderState = 3;
+				if ($getOverlaysDirectly) {
+					$modificationPlaceholderState = -1;
+					$movePlaceholderState = 4;
+				}
 					// Select new records (which exist only in the workspace)
 					// This is achieved by selecting the placeholders, which will be overlaid
 					// with the actual content later when calling t3lib_page::versionOL()
-				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = 1 AND ' . $alias . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
+				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = ' . $modificationPlaceholderState . ' AND ' . $alias . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
 					// Move-to placeholder
-				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = 3 AND ' . $alias . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
+				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = ' . $movePlaceholderState . ' AND ' . $alias . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
 			}
 		}
 		return $workspaceCondition;
