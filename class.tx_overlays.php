@@ -237,7 +237,11 @@ final class tx_overlays {
 
 				// Additional conditions when previewing a workspace
 			if ($GLOBALS['TSFE']->sys_page->versioningPreview) {
-					// Choose the version state of records to choose based on the $getOverlaysDirectly flag
+				$workspace = intval($GLOBALS['BE_USER']->workspace);
+					// Condition for records that are unmodified but whose parent was modified
+					// (when a parent record is modified, copies of its children are made that refer to the modified parent)
+				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = 0 AND ' . $alias . '.t3ver_wsid = ' . $workspace . ')';
+					// Choose the version state of records to select based on the $getOverlaysDirectly flag
 					// (see explanations in the phpDoc comment above)
 				$modificationPlaceholderState = 1;
 				$movePlaceholderState = 3;
@@ -248,9 +252,9 @@ final class tx_overlays {
 					// Select new records (which exist only in the workspace)
 					// This is achieved by selecting the placeholders, which will be overlaid
 					// with the actual content later when calling t3lib_page::versionOL()
-				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = ' . $modificationPlaceholderState . ' AND ' . $alias . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
+				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = ' . $modificationPlaceholderState . ' AND ' . $alias . '.t3ver_wsid = ' . $workspace . ')';
 					// Move-to placeholder
-				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = ' . $movePlaceholderState . ' AND ' . $alias . '.t3ver_wsid = ' . intval($GLOBALS['BE_USER']->workspace) . ')';
+				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = ' . $movePlaceholderState . ' AND ' . $alias . '.t3ver_wsid = ' . $workspace . ')';
 			}
 		}
 		return $workspaceCondition;
