@@ -1,3 +1,7 @@
+2011-01-25 Francois Suter (Cobweb)  <typo3@cobweb.ch>
+
+	* Added support for versioning/workspaces
+
 2010-08-31 Francois Suter (Cobweb)  <typo3@cobweb.ch>
 
 	* First public release (version 1.0.0)

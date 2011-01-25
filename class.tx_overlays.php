@@ -35,6 +35,7 @@
  * $Id$
  */
 final class tx_overlays {
+	static public $tableFields = array();
 
 	/**
 	 * This method is designed to get all the records from a given table, properly overlaid with versions and translations
@@ -70,7 +71,7 @@ final class tx_overlays {
 			$where .= '(' . $condition . ')';
 		}
 			// Add workspace condition
-		$condition = self::getWorkspaceCondition($fromTable);
+		$condition = self::getVersioningCondition($fromTable);
 		if (!empty($condition)) {
 			if (!empty($where)) {
 				$where .= ' AND ';
@@ -81,29 +82,56 @@ final class tx_overlays {
 			// If the language is not default, prepare for overlays
 		$doOverlays = FALSE;
 		if ($GLOBALS['TSFE']->sys_language_content > 0) {
-				// Make sure the list of selected fields includes "uid", "pid" and language fields so that language overlays can be gotten properly
-				// If these do not exist in the queried table, the recordset is returned as is, without overlay
+				// Make sure the list of selected fields includes the necessary language fields
+				// so that language overlays can be gotten properly
 			try {
 				$selectFields = self::selectOverlayFields($fromTable, $selectFields);
 				$doOverlays = TRUE;
-			}
-			catch (Exception $e) {
+			} catch (Exception $e) {
+					// If the language fields could not be gotten, avoid overlay process
 				$doOverlays = FALSE;
+			}
+		}
+			// If versioning preview is on, prepare for version overlays
+		$doVersioning = FALSE;
+		if ($GLOBALS['TSFE']->sys_page->versioningPreview) {
+			try {
+				$selectFields = self::selectVersioningFields($fromTable, $selectFields);
+				$doVersioning = TRUE;
+			} catch (Exception $e) {
+				$doVersioning = FALSE;
+			}
+		}
+
+			// Add base fields (uid, pid) if translations or versioning are activated
+		if ($doOverlays || $doVersioning) {
+			try {
+				$selectFields = self::selectBaseFields($fromTable, $selectFields);
+			} catch (Exception $e) {
+					// Neither translations nor versioning can happen without uid and pid
+				$doOverlays = FALSE;
+				$doVersioning = FALSE;
 			}
 		}
 
 			// Execute the query itself
-		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit);
-			// Assemble a raw recordset
-		$records = array();
-		while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
-			$records[] = $row;
+		$records = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit);
+			// Perform version overlays, if needed
+		if ($doVersioning) {
+			$numRecords = count($records);
+			for ($i = 0; $i < $numRecords; $i++) {
+				$GLOBALS['TSFE']->sys_page->versionOL($fromTable, $records[$i]);
+					// The versioned record may actually be FALSE if it is meant to be deleted
+					// in the workspace. To be really clean, unset it.
+				if ($records[$i] === FALSE) {
+					unset($records[$i]);
+				}
+			}
 		}
-		$GLOBALS['TYPO3_DB']->sql_free_result($res);
 
 			// If we have both a uid and a pid field, we can proceed with overlaying the records
 		if ($doOverlays) {
-			$records = self::overlayRecordSet($fromTable, $records, $GLOBALS['TSFE']->sys_language_content, $GLOBALS['TSFE']->sys_language_contentOL);
+			$records = self::overlayRecordSet($fromTable, $records, $GLOBALS['TSFE']->sys_language_content, $GLOBALS['TSFE']->sys_language_contentOL, $doVersioning);
 		}
 		return $records;
 	}
@@ -112,11 +140,15 @@ final class tx_overlays {
 	 * This method gets the SQL condition to apply for fetching the proper language
 	 * depending on the localization settings in the TCA
 	 *
-	 * @param	string		$table: name of the table to assemble the condition for
+	 * @param	string		$table: (true) name of the table to assemble the condition for
+	 * @param	string		$alias: alias to use for the table instead of its true name
 	 * @return	string		SQL to add to the WHERE clause (without "AND")
 	 */
-	public static function getLanguageCondition($table) {
+	public static function getLanguageCondition($table, $alias = '') {
 		$languageCondition = '';
+		if (empty($alias)) {
+			$alias = $table;
+		}
 
 			// First check if there's actually a TCA for the given table
 		if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
@@ -125,15 +157,16 @@ final class tx_overlays {
 				// Assemble language condition only if a language field is defined
 			if (!empty($tableCtrlTCA['languageField'])) {
 				if (isset($GLOBALS['TSFE']->sys_language_contentOL) && isset($tableCtrlTCA['transOrigPointerField'])) {
-					$languageCondition = $table . '.' . $tableCtrlTCA['languageField'] . ' IN (0,-1)'; // Default language and "all" language
+						// Default language and "all" language
+					$languageCondition = $alias . '.' . $tableCtrlTCA['languageField'] . ' IN (0,-1)';
 
 						// If current language is not default, select elements that exist only for current language
 						// That means elements that exist for current language but have no parent element
 					if ($GLOBALS['TSFE']->sys_language_content > 0) {
-						$languageCondition .= ' OR (' . $table . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "' AND " . $table . '.' . $tableCtrlTCA['transOrigPointerField'] . " = '0')";
+						$languageCondition .= ' OR (' . $alias . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "' AND " . $alias . '.' . $tableCtrlTCA['transOrigPointerField'] . " = '0')";
 					}
 				} else {
-					$languageCondition = $table . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "'";
+					$languageCondition = $alias . '.' . $tableCtrlTCA['languageField'] . " = '" . $GLOBALS['TSFE']->sys_language_content . "'";
 				}
 			}
 		}
@@ -152,6 +185,7 @@ final class tx_overlays {
 	public static function getEnableFieldsCondition($table, $showHidden = FALSE, $ignoreArray = array()) {
 		$enableCondition = '';
 			// First check if table has a TCA ctrl section, otherwise t3lib_page::enableFields() will die() (stupid thing!)
+			// NOTE: since TYPO3 4.5, an exception is thrown, so this method could eventually be adapted
 		if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
 			$showHidden = $showHidden ? $showHidden : ($table == 'pages' ? $GLOBALS['TSFE']->showHiddenPage : $GLOBALS['TSFE']->showHiddenRecords);
 			$enableCondition = $GLOBALS['TSFE']->sys_page->enableFields($table, $showHidden , $ignoreArray);
@@ -165,87 +199,254 @@ final class tx_overlays {
 	}
 
 	/**
-	 * This method assembles the proper condition with regards to versioning/workspaces
-	 *
-	 * NOTE: this is not complete yet! It just makes sure that only live records
-	 * are shown in the FE, but workspace preview does not work yet.
-	 *
-	 * @param	string		$table: name of the table to build the condition for
-	 * @return	string
+	 * This method used to assemble the proper condition with regards to versioning/workspaces
+	 * However it is now deprecated and getVersioningCondition should be used instead
+	 * 
+	 * @param <type> $table
+	 * @return <type> 
+	 * @deprecated Use self::getVersioningCondition() instead. Kept for backwards-compatibility but may be removed in the future.
 	 */
 	public static function getWorkspaceCondition($table) {
+		t3lib_div::logDeprecatedFunction();
+		return self::getVersioningCondition($table);
+	}
+
+	/**
+	 * This method assembles the proper condition with regards to versioning/workspaces
+	 *
+	 * Explanations on parameter $getOverlaysDirectly:
+	 * -----------------------------------------------
+	 * The base condition assembled by this method will get the placeholders for new or modified records.
+	 * This is normally the right way to do things, since those records are overlaid with their workspace version afterwards.
+	 * However if you want this condition as part of a more complicated query implying JOINs,
+	 * selecting placeholders will not work as the relationships are normally built with the version overlays
+	 * and not the placeholders. In this case it is desirable to select the overlays directly,
+	 * which can be achieved by setting $getOverlaysDirectly to TRUE
+	 *
+	 * NOTE: if this all sounds like gibberish, try reading more about workspaces in "Core API"
+	 * (there's also quite some stuff in "Inside TYPO3", but part of it is badly outdated)
+	 *
+	 * @param	string		$table: (true) name of the table to build the condition for
+	 * @param	string		$alias: alias to use for the table instead of its true name
+	 * @param	boolean		$getOverlaysDirectly: flag to choose original/placeholder records or overlays (see explanations above)
+	 * @return	string		SQL to add to the WHERE clause (without "AND")
+	 */
+	public static function getVersioningCondition($table, $alias = '', $getOverlaysDirectly = FALSE) {
 		$workspaceCondition = '';
+		if (empty($alias)) {
+			$alias = $table;
+		}
+
 			// If the table has some TCA definition, check workspace handling
 		if (isset($GLOBALS['TCA'][$table]['ctrl']) && !empty($GLOBALS['TCA'][$table]['ctrl']['versioningWS'])) {
-				// If not performing a workspace preview, make sure to grab only live records
-			if (!$GLOBALS['TSFE']->sys_page->versioningPreview) {
-				$workspaceCondition .= $table . '.t3ver_oid = 0 AND ' . $table . '.t3ver_state <= 0';
+
+				// Base condition to get only live records
+				// (they get overlaid afterwards in case of preview)
+			$workspaceCondition .= '(' . $alias . '.t3ver_state <= 0 AND ' . $alias . '.t3ver_oid = 0)';
+
+				// Additional conditions when previewing a workspace
+			if ($GLOBALS['TSFE']->sys_page->versioningPreview) {
+				$workspace = intval($GLOBALS['BE_USER']->workspace);
+					// Condition for records that are unmodified but whose parent was modified
+					// (when a parent record is modified, copies of its children are made that refer to the modified parent)
+				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = 0 AND ' . $alias . '.t3ver_wsid = ' . $workspace . ')';
+					// Choose the version state of records to select based on the $getOverlaysDirectly flag
+					// (see explanations in the phpDoc comment above)
+				$modificationPlaceholderState = 1;
+				$movePlaceholderState = 3;
+				if ($getOverlaysDirectly) {
+					$modificationPlaceholderState = -1;
+					$movePlaceholderState = 4;
+				}
+					// Select new records (which exist only in the workspace)
+					// This is achieved by selecting the placeholders, which will be overlaid
+					// with the actual content later when calling t3lib_page::versionOL()
+				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = ' . $modificationPlaceholderState . ' AND ' . $alias . '.t3ver_wsid = ' . $workspace . ')';
+					// Move-to placeholder
+				$workspaceCondition .= ' OR (' . $alias . '.t3ver_state = ' . $movePlaceholderState . ' AND ' . $alias . '.t3ver_wsid = ' . $workspace . ')';
 			}
 		}
 		return $workspaceCondition;
 	}
 
 	/**
+	 * This method gets all fields for a given table and stores that list
+	 * into an internal cache array
+	 * It then returns the list of fields
+	 *
+	 * @param	string	$table: name of the table to fetch the fields for
+	 * @return	array	List of fields for the given table
+	 */
+	public static function getAllFieldsForTable($table) {
+		if (!isset(self::$tableFields[$table])) {
+			self::$tableFields[$table] = $GLOBALS['TYPO3_DB']->admin_get_fields($table);
+		}
+		return self::$tableFields[$table];
+	}
+
+	/**
+	 * This method makes sure that base fields such as uid and pid are included
+	 * in the list of selected fields. These fields are absolutely necessary when
+	 * translations or versioning overlays are being made.
+	 * The method throws an exception if the fields are not available.
+	 *
+	 * @param	string	$table: Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param	string	$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @return	string	The modified SELECT string
+	 */
+	public static function selectBaseFields($table, $selectFields) {
+		$select = $selectFields;
+			// Don't bother if all fields are selected anyway
+		if ($selectFields != '*') {
+			$hasUidField = FALSE;
+			$hasPidField = FALSE;
+				// Get the list of fields for the given table
+			$tableFields = self::getAllFieldsForTable($table);
+
+				// Add the fields, if available
+				// NOTE: this may add the fields twice if they are already
+				// in the list of selected fields, but that doesn't hurt
+				// It doesn't seem worth making a very precise parsing of the list
+				// of selected fields just to avoid duplicates
+			if (isset($tableFields['uid'])) {
+				$select .= ', ' . $table . '.uid';
+				$hasUidField = TRUE;
+			}
+			if (isset($tableFields['pid'])) {
+				$select .= ', ' . $table . '.pid';
+				$hasPidField = TRUE;
+			}
+				// If one of the fields is still missing after that, throw an exception
+			if ($hasUidField === FALSE || $hasPidField === FALSE) {
+				throw new Exception('Not all base fields are available.', 1284463019);
+			}
+		}
+		return $select;
+	}
+
+	/**
 	 * This method makes sure that all the fields necessary for proper overlaying are included
 	 * in the list of selected fields and exist in the table being queried
-	 * If not, it throws an exception
+	 * If not, it lets the exception thrown by tx_context::selectOverlayFieldsArray() bubble up
 	 *
 	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
 	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
 	 * @return	string		Possibly modified list of fields to select
 	 */
 	public static function selectOverlayFields($table, $selectFields) {
-		$select = $selectFields;
-
-			// Check if the table indeed has a TCA
-		if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
-
-				// If the table uses a foreign table for translations, there are no fields to add
-				// Return original select fields directly
-			if ($GLOBALS['TCA'][$table]['ctrl']['transForeignTable']) {
-				return $selectFields;
-			} else {
-				$languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
-
-					// In order to be properly overlaid, a table has to have a uid, a pid and languageField
-				$hasUidField = strpos($selectFields, 'uid');
-				$hasPidField = strpos($selectFields, 'pid');
-				$hasLanguageField = strpos($selectFields, $languageField);
-				if ($hasUidField === FALSE || $hasPidField === FALSE || $hasLanguageField === FALSE) {
-					$availableFields = $GLOBALS['TYPO3_DB']->admin_get_fields($table);
-					if (isset($availableFields['uid'])) {
-						if ($selectFields != '*') {
-							$select .= ', ' . $table . '.uid';
-						}
-						$hasUidField = TRUE;
-					}
-					if (isset($availableFields['pid'])) {
-						if ($selectFields != '*') {
-							$select .= ', ' . $table . '.pid';
-						}
-						$hasPidField = TRUE;
-					}
-					if (isset($availableFields[$languageField])) {
-						if ($selectFields != '*') {
-							$select .= ', ' . $table . '.'.$languageField;
-						}
-						$hasLanguageField = TRUE;
-					}
-				}
-					// If one of the fields is still missing after that, throw an exception
-				if ($hasUidField === FALSE || $hasPidField === FALSE || $hasLanguageField === FALSE) {
-					throw new Exception('Not all overlay fields available.');
-
-					// Else return the modified list of fields to select
-				} else {
-					return $select;
-				}
+		$additionalFields = self::selectOverlayFieldsArray($table, $selectFields);
+		if (count($additionalFields) > 0) {
+			foreach ($additionalFields as $aField) {
+				$selectFields .= ', ' . $table . '.' . $aField;
 			}
-
-			// The table has no TCA, throw an exception
-		} else {
-			throw new Exception('No TCA for table, cannot add overlay fields.');
 		}
+		return $selectFields;
+	}
+
+	/**
+	 * This method checks which fields need to be added to the given list of SELECTed fields
+	 * so that language overlays can take place properly
+	 * If some information is missing, it throws an exception
+	 *
+	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @return	array		List of fields to add
+	 */
+	public static function selectOverlayFieldsArray($table, $selectFields) {
+		$additionalFields = array();
+
+			// If all fields are selected anyway, no need to worry
+		if ($selectFields != '*') {
+				// Check if the table indeed has a TCA
+			if (isset($GLOBALS['TCA'][$table]['ctrl'])) {
+
+					// Continue only if table is not using foreign tables for translations
+					// (in this case no additional field is needed) and has a language field
+				if (empty($GLOBALS['TCA'][$table]['ctrl']['transForeignTable']) && !empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
+					$languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
+
+						// In order to be properly overlaid, a table has to have a given languageField
+					$hasLanguageField = strpos($selectFields, $languageField);
+					if ($hasLanguageField === FALSE) {
+							// Get the list of fields for the given table
+						$tableFields = self::getAllFieldsForTable($table);
+						if (isset($tableFields[$languageField])) {
+							$additionalFields[] = $languageField;
+							$hasLanguageField = TRUE;
+						}
+					}
+						// If language field is still missing after that, throw an exception
+					if ($hasLanguageField === FALSE) {
+						throw new Exception('Language field not available.', 1284463837);
+					}
+				}
+
+				// The table has no TCA, throw an exception
+			} else {
+				throw new Exception('No TCA for table, cannot add overlay fields.', 1284474025);
+			}
+		}
+		return $additionalFields;
+	}
+
+	/**
+	 * This method makes sure that all the fields necessary for proper versioning overlays are included
+	 * in the list of selected fields and exist in the table being queried
+	 * If not, it lets the exception thrown by tx_context::selectVersioningFieldsArray() bubble up
+	 *
+	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @return	string		Possibly modified list of fields to select
+	 */
+	public static function selectVersioningFields($table, $selectFields) {
+		$additionalFields = self::selectVersioningFieldsArray($table, $selectFields);
+		if (count($additionalFields) > 0) {
+			foreach ($additionalFields as $aField) {
+				$selectFields .= ', ' . $table . '.' . $aField;
+			}
+		}
+		return $selectFields;
+	}
+
+	/**
+	 * This method checks which fields need to be added to the given list of SELECTed fields
+	 * so that versioning overlays can take place properly
+	 * If some information is missing, it throws an exception
+	 *
+	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @return	array		List of fields to add
+	 */
+	public static function selectVersioningFieldsArray($table, $selectFields) {
+		$additionalFields = array();
+
+			// If all fields are selected anyway, no need to worry
+		if ($selectFields != '*') {
+				// Check if the table indeed has a TCA and versioning information
+			if (isset($GLOBALS['TCA'][$table]['ctrl']) && !empty($GLOBALS['TCA'][$table]['ctrl']['versioningWS'])) {
+
+					// In order for versioning to work properly, the version state field is needed
+				$stateField = 't3ver_state';
+				$hasStateField = strpos($selectFields, $stateField);
+				if ($hasStateField === FALSE) {
+						// Get the list of fields for the given table
+					$tableFields = self::getAllFieldsForTable($table);
+					if (isset($tableFields[$stateField])) {
+						$additionalFields[] = $stateField;
+						$hasStateField = TRUE;
+					}
+				}
+					// If state field is still missing after that, throw an exception
+				if ($hasStateField === FALSE) {
+					throw new Exception('Fields for versioning were not all available.', 1284473941);
+				}
+
+				// The table has no TCA, throw an exception
+			} else {
+				throw new Exception('No TCA for table, cannot add versioning fields.', 1284474016);
+			}
+		}
+		return $additionalFields;
 	}
 
 	/**
@@ -256,9 +457,10 @@ final class tx_overlays {
 	 * @param	array		$recordset: Full recordset to overlay. Must containt uid, pid and $TCA[$table]['ctrl']['languageField']
 	 * @param	integer		$currentLanguage: Uid of the currently selected language in the FE
 	 * @param	string		$overlayMode: Overlay mode. If "hideNonTranslated" then records without translation will not be returned un-translated but removed instead.
+	 * @param	boolean		$doVersioning: true if workspace preview is on
 	 * @return	array		Returns the full overlaid recordset. If $overlayMode is "hideNonTranslated" then some records may be missing if no translation was found.
 	 */
-	public static function overlayRecordSet($table, $recordset, $currentLanguage, $overlayMode = '') {
+	public static function overlayRecordSet($table, $recordset, $currentLanguage, $overlayMode = '', $doVersioning = FALSE) {
 
 			// Test with the first row if uid and pid fields are present
 		if (!empty($recordset[0]['uid']) && !empty($recordset[0]['pid'])) {
@@ -291,7 +493,7 @@ final class tx_overlays {
 							}
 
 								// Get all overlay records
-							$overlays = self::getLocalOverlayRecords($table, $uidList, $currentLanguage);
+							$overlays = self::getLocalOverlayRecords($table, $uidList, $currentLanguage, $doVersioning);
 
 								// Now loop on the filtered recordset and try to overlay each record
 							$overlaidRecordset = array();
@@ -341,14 +543,14 @@ final class tx_overlays {
 							}
 
 								// Get all overlay records
-							$overlays = $this->getForeignOverlayRecords($tableCtrl['transForeignTable'], $uidList, $currentLanguage);
+							$overlays = self::getForeignOverlayRecords($tableCtrl['transForeignTable'], $uidList, $currentLanguage, $doVersioning);
 
 								// Now loop on the filtered recordset and try to overlay each record
 							$overlaidRecordset = array();
 							foreach ($recordset as $row) {
 									// An overlay exists, apply it
 								if (isset($overlays[$row['uid']])) {
-									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']][$row['pid']]);
+									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']]);
 
 									// No overlay exists
 								} else {
@@ -388,18 +590,19 @@ final class tx_overlays {
 	 * This method is a wrapper around getLocalOverlayRecords() and getForeignOverlayRecords().
 	 * It makes it possible to use the same call whether translations are in the same table or
 	 * in a foreign table. This method dispatches accordingly.
-	 * 
+	 *
 	 * @param	string		$table: name of the table for which to fetch the records
 	 * @param	array		$uids: array of all uid's of the original records for which to fetch the translation
 	 * @param	integer		$currentLanguage: uid of the system language to translate to
+	 * @param	boolean		$doVersioning: true if versioning overlay must be performed
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
-	public static function getOverlayRecords($table, $uids, $currentLanguage) {
+	public static function getOverlayRecords($table, $uids, $currentLanguage, $doVersioning = FALSE) {
 		if (is_array($uids) && count($uids) > 0) {
 			if (isset($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'])) {
-				return self::getForeignOverlayRecords($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'], $uids, $currentLanguage);
+				return self::getForeignOverlayRecords($GLOBALS['TCA'][$table]['ctrl']['transForeignTable'], $uids, $currentLanguage, $doVersioning);
 			} else {
-				return self::getLocalOverlayRecords($table, $uids, $currentLanguage);
+				return self::getLocalOverlayRecords($table, $uids, $currentLanguage, $doVersioning);
 			}
 		} else {
 			return array();
@@ -413,9 +616,10 @@ final class tx_overlays {
 	 * @param	string		$table: name of the table for which to fetch the records
 	 * @param	array		$uids: array of all uid's of the original records for which to fetch the translation
 	 * @param	integer		$currentLanguage: uid of the system language to translate to
+	 * @param	boolean		$doVersioning: true if versioning overlay must be performed
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
-	public static function getLocalOverlayRecords($table, $uids, $currentLanguage) {
+	public static function getLocalOverlayRecords($table, $uids, $currentLanguage, $doVersioning = FALSE) {
 		$overlays = array();
 		if (is_array($uids) && count($uids) > 0) {
 			$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
@@ -430,12 +634,20 @@ final class tx_overlays {
 				// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
 				// This structure is actually a 2-dimensional array, with the pid as the second key
 				// Because of versioning, there may be several overlays for a given original and matching the pid too
-				// ensures that we are refering to the correct overlay
+				// ensures that we are referring to the correct overlay
 			while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
-				if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) {
-					$overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
+					// Perform version overlays, if needed
+				if ($doVersioning) {
+					$GLOBALS['TSFE']->sys_page->versionOL($table, $row);
 				}
-				$overlays[$row[$tableCtrl['transOrigPointerField']]][$row['pid']] = $row;
+					// The versioned record may actually be FALSE if it is meant to be deleted
+					// in the workspace. To be really clean, unset it.
+				if ($row !== FALSE) {
+					if (!isset($overlays[$row[$tableCtrl['transOrigPointerField']]])) {
+						$overlays[$row[$tableCtrl['transOrigPointerField']]] = array();
+					}
+					$overlays[$row[$tableCtrl['transOrigPointerField']]][$row['pid']] = $row;
+				}
 			}
 			$GLOBALS['TYPO3_DB']->sql_free_result($res);
 		}
@@ -449,9 +661,10 @@ final class tx_overlays {
 	 * @param	string		$table: name of the table for which to fetch the records
 	 * @param	array		$uids: array of all uid's of the original records for which to fetch the translation
 	 * @param	integer		$currentLanguage: uid of the system language to translate to
+	 * @param	boolean		$doVersioning: true if versioning overlay must be performed
 	 * @return	array		All overlay records arranged per original uid and per pid, so that they can be checked (this is related to workspaces)
 	 */
-	public static function getForeignOverlayRecords($table, $uids, $currentLanguage) {
+	public static function getForeignOverlayRecords($table, $uids, $currentLanguage, $doVersioning = FALSE) {
 		$overlays = array();
 		if (is_array($uids) && count($uids) > 0) {
 			$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
@@ -459,13 +672,21 @@ final class tx_overlays {
 			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
 				'*',
 				$table,
-					$tableCtrl['languageField'].' = '.intval($currentLanguage).
+					$tableCtrl['languageField'].' = ' . intval($currentLanguage).
 					' AND ' . $tableCtrl['transOrigPointerField'] . ' IN (' . implode(', ', $uids) . ')' .
 					' AND ' . self::getEnableFieldsCondition($table)
 			);
 				// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
 			while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
-				$overlays[$row[$tableCtrl['transOrigPointerField']]] = $row;
+					// Perform version overlays, if needed
+				if ($doVersioning) {
+					$GLOBALS['TSFE']->sys_page->versionOL($table, $row);
+				}
+					// The versioned record may actually be FALSE if it is meant to be deleted
+					// in the workspace. To be really clean, unset it.
+				if ($row !== FALSE) {
+					$overlays[$row[$tableCtrl['transOrigPointerField']]] = $row;
+				}
 			}
 			$GLOBALS['TYPO3_DB']->sql_free_result($res);
 		}
