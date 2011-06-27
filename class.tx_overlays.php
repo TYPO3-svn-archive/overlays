@@ -624,13 +624,13 @@ final class tx_overlays {
 		if (is_array($uids) && count($uids) > 0) {
 			$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
 				// Select overlays for all records
-			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
-				'*',
-				$table,
-					$tableCtrl['languageField'].' = '.intval($currentLanguage).
-					' AND ' . $tableCtrl['transOrigPointerField'] . ' IN (' . implode(', ', $uids) . ')' .
-					' AND ' . self::getEnableFieldsCondition($table)
-			);
+			$where = $tableCtrl['languageField'] . ' = ' . intval($currentLanguage) .
+				' AND ' . $tableCtrl['transOrigPointerField'] . ' IN (' . implode(', ', $uids) . ')';
+			$enableCondition = self::getEnableFieldsCondition($table);
+			if (!empty($enableCondition)) {
+				$where .= ' AND ' . $enableCondition;
+			}
+			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('*', $table, $where);
 				// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
 				// This structure is actually a 2-dimensional array, with the pid as the second key
 				// Because of versioning, there may be several overlays for a given original and matching the pid too
@@ -669,13 +669,13 @@ final class tx_overlays {
 		if (is_array($uids) && count($uids) > 0) {
 			$tableCtrl = $GLOBALS['TCA'][$table]['ctrl'];
 				// Select overlays for all records
-			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery(
-				'*',
-				$table,
-					$tableCtrl['languageField'].' = ' . intval($currentLanguage).
-					' AND ' . $tableCtrl['transOrigPointerField'] . ' IN (' . implode(', ', $uids) . ')' .
-					' AND ' . self::getEnableFieldsCondition($table)
-			);
+			$where = $tableCtrl['languageField'] . ' = ' . intval($currentLanguage) .
+				' AND ' . $tableCtrl['transOrigPointerField'] . ' IN (' . implode(', ', $uids) . ')';
+			$enableCondition = self::getEnableFieldsCondition($table);
+			if (!empty($enableCondition)) {
+				$where .= ' AND ' . $enableCondition;
+			}
+			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('*', $table, $where);
 				// Arrange overlay records according to transOrigPointerField, so that it's easy to relate them to the originals
 			while (($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res))) {
 					// Perform version overlays, if needed
