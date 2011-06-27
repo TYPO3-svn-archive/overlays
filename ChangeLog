@@ -1,6 +1,7 @@
 2011-06-27 Francois Suter (Cobweb)  <typo3@cobweb.ch>
 
 	* Fixed bug with enable fields condition on tables without enable fields, resolves #27551
+	* Released to TER as version 2.0.1
 
 2011-03-22 Francois Suter (Cobweb)  <typo3@cobweb.ch>
 

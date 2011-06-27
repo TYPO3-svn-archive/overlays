@@ -3,7 +3,7 @@
 ########################################################################
 # Extension Manager/Repository config file for ext "overlays".
 #
-# Auto generated 22-03-2011 17:22
+# Auto generated 27-06-2011 22:38
 #
 # Manual updates:
 # Only the data in the array - everything else is removed by next
@@ -29,7 +29,7 @@ $EM_CONF[$_EXTKEY] = array(
 	'clearCacheOnLoad' => 0,
 	'lockType' => '',
 	'author_company' => '',
-	'version' => '2.0.0',
+	'version' => '2.0.1',
 	'constraints' => array(
 		'depends' => array(
 		),
@@ -38,7 +38,7 @@ $EM_CONF[$_EXTKEY] = array(
 		'suggests' => array(
 		),
 	),
-	'_md5_values_when_last_written' => 'a:7:{s:9:"ChangeLog";s:4:"ad82";s:10:"README.txt";s:4:"b729";s:21:"class.tx_overlays.php";s:4:"08fe";s:16:"ext_autoload.php";s:4:"ad6d";s:12:"ext_icon.gif";s:4:"73e0";s:14:"doc/manual.pdf";s:4:"251c";s:14:"doc/manual.sxw";s:4:"fde8";}',
+	'_md5_values_when_last_written' => 'a:7:{s:9:"ChangeLog";s:4:"4ba4";s:10:"README.txt";s:4:"b729";s:21:"class.tx_overlays.php";s:4:"d1d8";s:16:"ext_autoload.php";s:4:"ad6d";s:12:"ext_icon.gif";s:4:"73e0";s:14:"doc/manual.pdf";s:4:"dadf";s:14:"doc/manual.sxw";s:4:"5e82";}',
 	'suggests' => array(
 	),
 );
