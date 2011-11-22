@@ -199,11 +199,11 @@ final class tx_overlays {
 	}
 
 	/**
-	 * This method used to assemble the proper condition with regards to versioning/workspaces
+	 * This method is used to assemble the proper condition with regards to versioning/workspaces
 	 * However it is now deprecated and getVersioningCondition should be used instead
-	 * 
-	 * @param <type> $table
-	 * @return <type> 
+	 *
+	 * @param array $table Name of the table to get the condition for
+	 * @return string The SQL condition
 	 * @deprecated Use self::getVersioningCondition() instead. Kept for backwards-compatibility but may be removed in the future.
 	 */
 	public static function getWorkspaceCondition($table) {
