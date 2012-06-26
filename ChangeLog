@@ -1,3 +1,7 @@
+2012-06-26 Francois Suter (Cobweb)  <typo3@cobweb.ch>
+
+	* Cleaned up some code, verified compatibility with TYPO3 4.7, raised requirements to TYPO3 4.5, resolves #38394
+
 2011-06-27 Francois Suter (Cobweb)  <typo3@cobweb.ch>
 
 	* Fixed bug with enable fields condition on tables without enable fields, resolves #27551

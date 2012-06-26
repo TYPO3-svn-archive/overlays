@@ -2,7 +2,7 @@
 /***************************************************************
 *  Copyright notice
 *
-*  (c) 2008-2010 Francois Suter (Cobweb) <typo3@cobweb.ch>
+*  (c) 2008-2012 Francois Suter (Cobweb) <typo3@cobweb.ch>
 *  All rights reserved
 *
 *  This script is part of the TYPO3 project. The TYPO3 project is
@@ -290,9 +290,10 @@ final class tx_overlays {
 	 * translations or versioning overlays are being made.
 	 * The method throws an exception if the fields are not available.
 	 *
-	 * @param	string	$table: Table from which to select. This is what comes right after "FROM ...". Required value.
-	 * @param	string	$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
-	 * @return	string	The modified SELECT string
+	 * @param string $table Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param string $selectFields List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @throws Exception
+	 * @return string The modified SELECT string
 	 */
 	public static function selectBaseFields($table, $selectFields) {
 		$select = $selectFields;
@@ -348,9 +349,10 @@ final class tx_overlays {
 	 * so that language overlays can take place properly
 	 * If some information is missing, it throws an exception
 	 *
-	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
-	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
-	 * @return	array		List of fields to add
+	 * @param string $table Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param string $selectFields List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @throws Exception
+	 * @return array List of fields to add
 	 */
 	public static function selectOverlayFieldsArray($table, $selectFields) {
 		$additionalFields = array();
@@ -413,9 +415,10 @@ final class tx_overlays {
 	 * so that versioning overlays can take place properly
 	 * If some information is missing, it throws an exception
 	 *
-	 * @param	string		$table: Table from which to select. This is what comes right after "FROM ...". Required value.
-	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
-	 * @return	array		List of fields to add
+	 * @param string $table Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param string $selectFields List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @throws Exception
+	 * @return array List of fields to add
 	 */
 	public static function selectVersioningFieldsArray($table, $selectFields) {
 		$additionalFields = array();
