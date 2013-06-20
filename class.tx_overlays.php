@@ -43,15 +43,16 @@ final class tx_overlays {
 	 * A small difference is that it will take only a single table
 	 * The big difference is that it returns an array of properly overlaid records and not a result pointer
 	 *
-	 * @param	string		$selectFields: List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
-	 * @param	string		$fromTable: Table from which to select. This is what comes right after "FROM ...". Required value.
-	 * @param	string		$whereClause: Optional additional WHERE clauses put in the end of the query. NOTICE: You must escape values in this argument with $this->fullQuoteStr() yourself! DO NOT PUT IN GROUP BY, ORDER BY or LIMIT!
-	 * @param	string		$groupBy: Optional GROUP BY field(s), if none, supply blank string.
-	 * @param	string		$orderBy: Optional ORDER BY field(s), if none, supply blank string.
-	 * @param	string		$limit: Optional LIMIT value ([begin,]max), if none, supply blank string.
-	 * @return	array		Fully overlaid recordset
+	 * @param string $selectFields List of fields to select from the table. This is what comes right after "SELECT ...". Required value.
+	 * @param string $fromTable Table from which to select. This is what comes right after "FROM ...". Required value.
+	 * @param string $whereClause Optional additional WHERE clauses put in the end of the query. NOTICE: You must escape values in this argument with $this->fullQuoteStr() yourself! DO NOT PUT IN GROUP BY, ORDER BY or LIMIT!
+	 * @param string $groupBy Optional GROUP BY field(s), if none, supply blank string.
+	 * @param string $orderBy Optional ORDER BY field(s), if none, supply blank string.
+	 * @param string $limit Optional LIMIT value ([begin,]max), if none, supply blank string.
+	 * @param string $indexField Optional name of a field to use as an index for the result array. Must be included in the list of select fields.
+	 * @return array Fully overlaid recordset
 	 */
-	public static function getAllRecordsForTable($selectFields, $fromTable, $whereClause = '', $groupBy = '', $orderBy = '', $limit = '') {
+	public static function getAllRecordsForTable($selectFields, $fromTable, $whereClause = '', $groupBy = '', $orderBy = '', $limit = '', $indexField = '') {
 			// SQL WHERE clause is the base clause passed to the function
 		$where = $whereClause;
 			// Add language condition
@@ -115,16 +116,15 @@ final class tx_overlays {
 		}
 
 			// Execute the query itself
-		$records = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit);
+		$records = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows($selectFields, $fromTable, $where, $groupBy, $orderBy, $limit, $indexField);
 			// Perform version overlays, if needed
 		if ($doVersioning) {
-			$numRecords = count($records);
-			for ($i = 0; $i < $numRecords; $i++) {
-				$GLOBALS['TSFE']->sys_page->versionOL($fromTable, $records[$i]);
+			foreach ($records as $index => $aRecord) {
+				$GLOBALS['TSFE']->sys_page->versionOL($fromTable, $aRecord);
 					// The versioned record may actually be FALSE if it is meant to be deleted
 					// in the workspace. To be really clean, unset it.
-				if ($records[$i] === FALSE) {
-					unset($records[$i]);
+				if ($aRecord === FALSE) {
+					unset($records[$index]);
 				}
 			}
 		}
@@ -457,7 +457,7 @@ final class tx_overlays {
 	 * This is originally copied from t3lib_page::getRecordOverlay()
 	 *
 	 * @param	string		$table: Table name
-	 * @param	array		$recordset: Full recordset to overlay. Must containt uid, pid and $TCA[$table]['ctrl']['languageField']
+	 * @param	array		$recordset: Full recordset to overlay. Must contain uid, pid and $TCA[$table]['ctrl']['languageField']
 	 * @param	integer		$currentLanguage: Uid of the currently selected language in the FE
 	 * @param	string		$overlayMode: Overlay mode. If "hideNonTranslated" then records without translation will not be returned un-translated but removed instead.
 	 * @param	boolean		$doVersioning: true if workspace preview is on
@@ -466,7 +466,8 @@ final class tx_overlays {
 	public static function overlayRecordSet($table, $recordset, $currentLanguage, $overlayMode = '', $doVersioning = FALSE) {
 
 			// Test with the first row if uid and pid fields are present
-		if (!empty($recordset[0]['uid']) && !empty($recordset[0]['pid'])) {
+		$firstRecord = current($recordset);
+		if ($firstRecord !== FALSE && !empty($firstRecord['uid']) && !empty($firstRecord['pid'])) {
 
 				// Test if the table has a TCA definition
 			if (isset($GLOBALS['TCA'][$table])) {
@@ -476,13 +477,13 @@ final class tx_overlays {
 				if (isset($tableCtrl['languageField']) && isset($tableCtrl['transOrigPointerField'])) {
 
 						// Test with the first row if languageField is present
-					if (isset($recordset[0][$tableCtrl['languageField']])) {
+					if (isset($firstRecord[$tableCtrl['languageField']])) {
 
 							// Filter out records that are not in the default or [ALL] language, should there be any
 						$filteredRecordset = array();
-						foreach ($recordset as $row) {
+						foreach ($recordset as $index => $row) {
 							if ($row[$tableCtrl['languageField']] <= 0) {
-								$filteredRecordset[] = $row;
+								$filteredRecordset[$index] = $row;
 							}
 						}
 							// Will try to overlay a record only if the sys_language_content value is larger than zero,
@@ -500,20 +501,20 @@ final class tx_overlays {
 
 								// Now loop on the filtered recordset and try to overlay each record
 							$overlaidRecordset = array();
-							foreach ($recordset as $row) {
+							foreach ($recordset as $index => $row) {
 									// If record is already in the right language, keep it as is
 								if ($row[$tableCtrl['languageField']] == $currentLanguage) {
-									$overlaidRecordset[] = $row;
+									$overlaidRecordset[$index] = $row;
 
 									// Else try to apply an overlay
 								} elseif (isset($overlays[$row['uid']][$row['pid']])) {
-									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']][$row['pid']]);
+									$overlaidRecordset[$index] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']][$row['pid']]);
 
 									// No overlay exists, apply relevant translation rules
 								} else {
 										// Take original record, only if non-translated are not hidden, or if language is [All]
 									if ($overlayMode != 'hideNonTranslated' || $row[$tableCtrl['languageField']] == -1) {
-										$overlaidRecordset[] = $row;
+										$overlaidRecordset[$index] = $row;
 									}
 								}
 							}
@@ -550,16 +551,16 @@ final class tx_overlays {
 
 								// Now loop on the filtered recordset and try to overlay each record
 							$overlaidRecordset = array();
-							foreach ($recordset as $row) {
+							foreach ($recordset as $index => $row) {
 									// An overlay exists, apply it
 								if (isset($overlays[$row['uid']])) {
-									$overlaidRecordset[] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']]);
+									$overlaidRecordset[$index] = self::overlaySingleRecord($table, $row, $overlays[$row['uid']]);
 
 									// No overlay exists
 								} else {
 										// Take original record, only if non-translated are not hidden
 									if ($overlayMode != 'hideNonTranslated') {
-										$overlaidRecordset[] = $row;
+										$overlaidRecordset[$index] = $row;
 									}
 								}
 							}
