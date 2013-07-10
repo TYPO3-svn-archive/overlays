@@ -2,6 +2,7 @@
 
 	* Verified compatibility with TYPO3 6.0 and 6.1, resolves #49277
 	* Added possibility to define field to use as index in getAllRecordsForTable(), resolves #45306
+	* Released to TER as version 2.2.0
 
 2012-07-10 Francois Suter (Cobweb)  <typo3@cobweb.ch>
 
