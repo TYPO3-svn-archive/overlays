@@ -711,17 +711,35 @@ final class tx_overlays {
 		$overlaidRecord['_LOCALIZED_UID'] = $overlay['uid'];
 		foreach ($record as $key => $value) {
 			if ($key != 'uid' && $key != 'pid' && isset($overlay[$key])) {
-				if (isset($GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$key])) {
-					if ($GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$key] != 'exclude'
-							&& ($GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$key] != 'mergeIfNotBlank' || strcmp(trim($overlay[$key]), ''))) {
+				$l10mMode = self::getL10nModeForColumn($table, $key);
+				if (empty($l10mMode)) {
+					$overlaidRecord[$key] = $overlay[$key];
+				} else {
+					if ($l10mMode != 'exclude' && ($l10mMode != 'mergeIfNotBlank' || strcmp(trim($overlay[$key]), ''))) {
 						$overlaidRecord[$key] = $overlay[$key];
 					}
-				} else {
-					$overlaidRecord[$key] = $overlay[$key];
 				}
 			}
 		}
 		return $overlaidRecord;
+	}
+
+	/**
+	 * Gets the l10n_mode value, taking TYPO3 CMS versions into account.
+	 *
+	 * @param string $table Name of the table being looked up
+	 * @param string $column Name of the column being looked up
+	 * @return string Value of the l10n_mode property, a blank string if undefined
+	 */
+	public function getL10nModeForColumn($table, $column) {
+		// Prior to TYPO3 CMS 6.1, l10n_mode is stored in a special TCA cache
+		if (isset($GLOBALS['TSFE']->TCAcachedExtras)) {
+			return (isset($GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$column])) ? $GLOBALS['TSFE']->TCAcachedExtras[$table]['l10n_mode'][$column] : '';
+
+		// As of TYPO3 CMS 6.1, the full TCA is always loaded
+		} else {
+			return (isset($GLOBALS['TCA'][$table]['columns'][$column]['l10n_mode'])) ? $GLOBALS['TCA'][$table]['columns'][$column]['l10n_mode'] : '';
+		}
 	}
 }
 ?>
