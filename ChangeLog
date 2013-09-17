@@ -1,6 +1,7 @@
 2013-09-17 Francois Suter (Cobweb)  <typo3@cobweb.ch>
 
 	* Corrected handling of l10n_mode with TYPO3 CMS 6.1, resolves #52044
+	* Released to TER as version 2.2.1
 
 2013-06-20 Francois Suter (Cobweb)  <typo3@cobweb.ch>
 
